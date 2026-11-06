@@ -461,7 +461,7 @@ function openRiseFallPicker(pt){
 function handleRouteTap(pt){
  if(mode!=='route')return;
  const now=Date.now(),last=lastRouteTap;
- if(last&&now-last.time<420&&Math.hypot((pt.x-last.pt.x)*$('overlay').width,(pt.y-last.pt.y)*$('overlay').height)<28*scale){
+ if(last&&now-last.time<600&&Math.hypot((pt.x-last.pt.x)*$('overlay').width,(pt.y-last.pt.y)*$('overlay').height)<44*scale){
   // The first tap was provisionally added as a route point; remove it so the double-tap
   // becomes a standalone rise/fall marker rather than an unwanted short route segment.
   if(last.path===routeDraft&&routeDraft.length===last.lengthAfterTap)routeDraft.pop();
@@ -573,6 +573,19 @@ function finishPlacementPointer(e){if(!activeTouches.has(e.pointerId))return;con
 $('overlay').addEventListener('pointerup',finishPlacementPointer);
 $('overlay').addEventListener('click',e=>{
  if(!activeDrawing)return;
+ // iOS Safari fallback for service-route taps. Pointerup normally handles the
+ // point; only use click when no pointerup was received for this tap.
+ if(mode==='route'){
+  if(Date.now()-lastRoutePointerUpAt>650){
+   const pt=displayPointFromClient(e.clientX,e.clientY);
+   handleRouteTap(pt);
+   lastRoutePointerUpAt=Date.now();
+   // A missed pointerup can leave the gesture bookkeeping active. Clear it so
+   // the next tap is still treated as a single-finger tap, not a pinch.
+   activeTouches.clear();gesture=null;pinchGesture=null;
+  }
+  return;
+ }
  // Safari fallback: if pointerup was missed, create the preview only.
  // Do not auto-commit: the user must still be able to rotate it.
  if(mode==='symbol'&&pendingSymbol){
