@@ -619,19 +619,12 @@ let lastSymbolPreviewAt=0;
 let lastSymbolTapAt=0,lastSymbolTapPoint=null;
 function placeSymbolAt(x,y){
  if(!pendingSymbol){toast('Select a symbol below');return}
- // iOS can deliver the same physical tap through pointerup and click/touch
- // fallback handlers. Ignore duplicate events at effectively the same point.
- const now=Date.now();
- if(lastSymbolTapPoint && now-lastSymbolTapAt<650 &&
-    Math.hypot((x-lastSymbolTapPoint.x)*$('overlay').width,(y-lastSymbolTapPoint.y)*$('overlay').height)<24*scale)return;
- lastSymbolTapAt=now;lastSymbolTapPoint={x,y};
- const annotation={id:uid(),type:'symbol',page:pageNo,x:Math.max(0,Math.min(1,x)),y:Math.max(0,Math.min(1,y)),
+ pendingSymbolPlacement={id:uid(),type:'symbol',page:pageNo,x:Math.max(0,Math.min(1,x)),y:Math.max(0,Math.min(1,y)),
   label:pendingSymbol.label,name:pendingSymbol.name,shape:pendingSymbol.shape,colour:pendingSymbol.colour,
   size:16,fontSize:7.5,service:pendingSymbol.service,rotation:0};
- pushUndo();activeDrawing.annotations.push(annotation);saveDB();
- pendingSymbolPlacement=null;$('cancelSymbolPlacement').style.display='none';
- $('placementCurrent').textContent=`${pendingSymbol.label} — ${pendingSymbol.name} · placed`;
- mode='symbol';syncOverlayInput();drawAnnotations();
+ $('cancelSymbolPlacement').style.display='inline-block';
+ $('placementCurrent').textContent='Drag the yellow handle to rotate; tap the symbol to confirm, or tap elsewhere to reposition';
+ mode='symbolPreview';syncOverlayInput();drawAnnotations();
 }
 function commitSymbolPlacement(){
  if(!pendingSymbolPlacement)return;
@@ -658,9 +651,9 @@ function previewSymbolHit(clientX,clientY){
  const angle=(pendingSymbolPlacement.rotation||0)*Math.PI/180;
  const lx=dx*Math.cos(angle)+dy*Math.sin(angle),ly=-dx*Math.sin(angle)+dy*Math.cos(angle);
  const sz=(pendingSymbolPlacement.size||16)*scale,shape=pendingSymbolPlacement.shape;
- if(shape==='circle')return Math.hypot(lx,ly)<=sz*.62;
- if(shape==='rectangle')return Math.abs(lx)<=sz*1.32&&Math.abs(ly)<=sz*.62;
- if(shape==='square')return Math.abs(lx)<=sz*.62&&Math.abs(ly)<=sz*.62;
+ if(shape==='circle')return Math.hypot(lx,ly)<=sz*.95;
+ if(shape==='rectangle')return Math.abs(lx)<=sz*1.55&&Math.abs(ly)<=sz*.9;
+ if(shape==='square')return Math.abs(lx)<=sz*.95&&Math.abs(ly)<=sz*.95;
  // Point-in-triangle test for the rotated triangular symbol.
  const ax=0,ay=-sz/2,bx=sz/2,by=sz/2,cx=-sz/2,cy=sz/2;
  const d1=(lx-bx)*(ay-by)-(ax-bx)*(ly-by);
@@ -686,7 +679,7 @@ async function commitPinchZoom(){if(!pinchGesture||!pinchGesture.changed)return;
 function finishPlacementPointer(e){if(mode==='route'){activeTouches.delete(e.pointerId);return}if(!activeTouches.has(e.pointerId))return;const wasSingle=activeTouches.size===1,g=gesture;activeTouches.delete(e.pointerId);
  if(wasSingle&&g&&!g.moved&&(mode==='select'||mode==='moveAnnotation')){lastSelectInputAt=Date.now();const pt=displayPointFromClient(e.clientX,e.clientY);if(mode==='select')selectAnnotationAt(pt);else moveSelectedAnnotation(pt);gesture=null;return}
  if(rotateDragPointer===e.pointerId){rotateDragPointer=null;gesture=null;return}
- if(commitSymbolPointer===e.pointerId){commitSymbolPointer=null;gesture=null;return}
+ if(commitSymbolPointer===e.pointerId){commitSymbolPointer=null;gesture=null;commitSymbolPlacement();return}
  if(wasSingle&&g&&!g.moved){const pt=displayPointFromClient(e.clientX,e.clientY);if(mode==='route'){handleRouteTap(pt);lastRoutePointerUpAt=Date.now()}else if(mode==='symbol')placeSymbolAt(pt.x,pt.y);else if(mode==='symbolPreview'&&pendingSymbolPlacement){pendingSymbolPlacement.x=pt.x;pendingSymbolPlacement.y=pt.y;drawAnnotations()}else if(mode==='photo'){pendingPoint=pt;mode=null;syncOverlayInput();openPhotoCapturePrompt()}else if(mode==='comment'){pendingPoint=pt;placementReturnMode=document.body.classList.contains('placement-mode')?(pendingSymbol?'symbol':null):null;mode=null;syncOverlayInput();openCommentEditor()}}
  if(activeTouches.size===0){commitPinchZoom();gesture=null;pinchGesture=null}}
 $('overlay').addEventListener('pointerup',finishPlacementPointer);
@@ -708,25 +701,7 @@ $('pageStage').addEventListener('pointerup',e=>{
  activeTouches.clear();gesture=null;pinchGesture=null;
 },true);
 $('pageStage').addEventListener('pointercancel',()=>{routePointerStart=null;symbolPointerStart=null},true);
-// iPhone symbol-placement fallback: handle a short tap at pageStage capture phase.
-// This avoids relying solely on the overlay's pointerup handler, which can be
-// sensitive to tiny finger movements or Safari pointer-capture behaviour.
-let symbolPointerStart=null;
-$('pageStage').addEventListener('pointerdown',e=>{
- if(mode==='symbol')symbolPointerStart={id:e.pointerId,x:e.clientX,y:e.clientY};
-},true);
-$('pageStage').addEventListener('pointerup',e=>{
- if(mode!=='symbol'||!symbolPointerStart||symbolPointerStart.id!==e.pointerId)return;
- const start=symbolPointerStart;symbolPointerStart=null;
- if(Math.hypot(e.clientX-start.x,e.clientY-start.y)>18)return;
- const pt=displayPointFromClient(e.clientX,e.clientY);
- placeSymbolAt(pt.x,pt.y);
-},true);
-$('pageStage').addEventListener('click',e=>{
- if(mode!=='symbol'||!pendingSymbol)return;
- const pt=displayPointFromClient(e.clientX,e.clientY);
- placeSymbolAt(pt.x,pt.y);
-},true);
+
 $('pageStage').addEventListener('click',e=>{
  if(mode!=='route')return;
  // A pointerup-generated click follows immediately; ignore it to avoid doubling.
