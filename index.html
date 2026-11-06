@@ -612,13 +612,22 @@ $('placeSymbol').onclick=startSymbolPlacement;$('bottomSymbol').onclick=startSym
 // In symbol placement mode, distinguish taps (place) from drag/pinch (navigate).
 const activeTouches=new Map();let gesture=null,pinchGesture=null,commitSymbolPointer=null,lastSelectInputAt=0;
 let lastSymbolPreviewAt=0;
+let lastSymbolTapAt=0,lastSymbolTapPoint=null;
 function placeSymbolAt(x,y){
  if(!pendingSymbol){toast('Select a symbol below');return}
- lastSymbolPreviewAt=Date.now();
- pendingSymbolPlacement={id:uid(),type:'symbol',page:pageNo,x,y,label:pendingSymbol.label,name:pendingSymbol.name,shape:pendingSymbol.shape,colour:pendingSymbol.colour,size:16,fontSize:7.5,service:pendingSymbol.service,rotation:0};
- $('cancelSymbolPlacement').style.display='inline-block';
- $('placementCurrent').textContent='Drag the yellow handle to rotate; tap the symbol to confirm, or elsewhere to move it';
- mode='symbolPreview';syncOverlayInput();drawAnnotations();
+ // iOS can deliver the same physical tap through pointerup and click/touch
+ // fallback handlers. Ignore duplicate events at effectively the same point.
+ const now=Date.now();
+ if(lastSymbolTapPoint && now-lastSymbolTapAt<650 &&
+    Math.hypot((x-lastSymbolTapPoint.x)*$('overlay').width,(y-lastSymbolTapPoint.y)*$('overlay').height)<24*scale)return;
+ lastSymbolTapAt=now;lastSymbolTapPoint={x,y};
+ const annotation={id:uid(),type:'symbol',page:pageNo,x:Math.max(0,Math.min(1,x)),y:Math.max(0,Math.min(1,y)),
+  label:pendingSymbol.label,name:pendingSymbol.name,shape:pendingSymbol.shape,colour:pendingSymbol.colour,
+  size:16,fontSize:7.5,service:pendingSymbol.service,rotation:0};
+ pushUndo();activeDrawing.annotations.push(annotation);saveDB();
+ pendingSymbolPlacement=null;$('cancelSymbolPlacement').style.display='none';
+ $('placementCurrent').textContent=`${pendingSymbol.label} — ${pendingSymbol.name} · placed`;
+ mode='symbol';syncOverlayInput();drawAnnotations();
 }
 function commitSymbolPlacement(){
  if(!pendingSymbolPlacement)return;
@@ -673,7 +682,7 @@ async function commitPinchZoom(){if(!pinchGesture||!pinchGesture.changed)return;
 function finishPlacementPointer(e){if(mode==='route'){activeTouches.delete(e.pointerId);return}if(!activeTouches.has(e.pointerId))return;const wasSingle=activeTouches.size===1,g=gesture;activeTouches.delete(e.pointerId);
  if(wasSingle&&g&&!g.moved&&(mode==='select'||mode==='moveAnnotation')){lastSelectInputAt=Date.now();const pt=displayPointFromClient(e.clientX,e.clientY);if(mode==='select')selectAnnotationAt(pt);else moveSelectedAnnotation(pt);gesture=null;return}
  if(rotateDragPointer===e.pointerId){rotateDragPointer=null;gesture=null;return}
- if(commitSymbolPointer===e.pointerId){commitSymbolPointer=null;gesture=null;commitSymbolPlacement();return}
+ if(commitSymbolPointer===e.pointerId){commitSymbolPointer=null;gesture=null;return}
  if(wasSingle&&g&&!g.moved){const pt=displayPointFromClient(e.clientX,e.clientY);if(mode==='route'){handleRouteTap(pt);lastRoutePointerUpAt=Date.now()}else if(mode==='symbol')placeSymbolAt(pt.x,pt.y);else if(mode==='symbolPreview'&&pendingSymbolPlacement){pendingSymbolPlacement.x=pt.x;pendingSymbolPlacement.y=pt.y;drawAnnotations()}else if(mode==='photo'){pendingPoint=pt;mode=null;syncOverlayInput();openPhotoCapturePrompt()}else if(mode==='comment'){pendingPoint=pt;placementReturnMode=document.body.classList.contains('placement-mode')?(pendingSymbol?'symbol':null):null;mode=null;syncOverlayInput();openCommentEditor()}}
  if(activeTouches.size===0){commitPinchZoom();gesture=null;pinchGesture=null}}
 $('overlay').addEventListener('pointerup',finishPlacementPointer);
