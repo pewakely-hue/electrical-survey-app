@@ -144,7 +144,7 @@ body.route-mode #placementGroups,body.route-mode #placementSymbols,body.route-mo
 
 <div class="bottomBar" id="bottomBar"><div class="row"><button id="bottomSymbol" class="primary">Symbol</button><button id="bottomComment" class="primary">Comment</button><button id="bottomSave">Save</button></div></div>
 <div id="placementHUD" aria-live="polite">
- <div class="placementTop"><button id="placementComment">＋ Comment</button><button id="undoRoutePoint" style="display:none">Undo Point</button><button id="cancelRoute" style="display:none">Cancel Route</button><button id="finishRoute" class="primary" style="display:none">Finish Route</button><button id="cancelSymbolPlacement" style="display:none">Cancel</button><button id="placementDone" class="primary">Done</button><span id="placementTitle">Place symbols</span></div>
+ <div class="placementTop"><button id="placementComment">＋ Comment</button><button id="undoRoutePoint" style="display:none">Undo Point</button><button id="branchRoute" style="display:none">＋ Branch</button><button id="cancelRoute" style="display:none">Cancel Route</button><button id="finishRoute" class="primary" style="display:none">Finish Route</button><button id="cancelSymbolPlacement" style="display:none">Cancel</button><button id="placementDone" class="primary">Done</button><span id="placementTitle">Place symbols</span></div>
  <div class="placementBottom">
   <div id="placementCurrent">Select a symbol</div>
   <div id="placementGroups" aria-label="Filter symbols by service"></div>
@@ -320,14 +320,29 @@ function drawPhotoPin(ctx,x,y,s=1,num=''){
  if(num){ctx.font=`bold ${Math.max(9,9*s)}px Arial`;ctx.textAlign='left';ctx.textBaseline='middle';const tw=ctx.measureText(num).width;ctx.fillStyle='#fff';ctx.strokeStyle='#0f6b8f';ctx.lineWidth=1.5;ctx.beginPath();ctx.rect(8*s,-17*s,tw+7*s,13*s);ctx.fill();ctx.stroke();ctx.fillStyle='#0f6b8f';ctx.fillText(num,11*s,-10.5*s)}ctx.restore();
 }
 function drawRouteCanvas(ctx,route,preview=false){
- const c=$('overlay'),pts=(route.points||[]).map(p=>{const q=toDisplayPoint(p.x,p.y);return{x:q.x*c.width,y:q.y*c.height}});
- if(!pts.length)return;
+ const c=$('overlay'),paths=route.paths||[route.points||[]];
+ const mapped=paths.map(path=>path.map(p=>{const q=toDisplayPoint(p.x,p.y);return{x:q.x*c.width,y:q.y*c.height}})).filter(path=>path.length);
+ if(!mapped.length)return;
  ctx.save();ctx.strokeStyle=route.colour||'#2563eb';ctx.fillStyle=route.colour||'#2563eb';ctx.lineWidth=3*scale;ctx.lineJoin='round';ctx.lineCap='round';
  if(preview)ctx.setLineDash([7*scale,4*scale]);
- if(pts.length>1){ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);pts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke()}
- ctx.setLineDash([]);
- pts.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,4.2*scale,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.5*scale;ctx.stroke()});
- if(route.name){ctx.font=`bold ${12*scale}px Arial`;ctx.textAlign='left';ctx.textBaseline='bottom';ctx.lineWidth=3*scale;ctx.strokeStyle='#fff';ctx.strokeText(route.name,pts[0].x+7*scale,pts[0].y-7*scale);ctx.fillStyle=route.colour||'#2563eb';ctx.fillText(route.name,pts[0].x+7*scale,pts[0].y-7*scale)}
+ mapped.forEach(pts=>{
+  if(pts.length>1){ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);pts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke()}
+  ctx.setLineDash([]);
+  pts.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,4.2*scale,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.5*scale;ctx.stroke()});
+ });
+ const first=mapped[0][0];
+ if(route.name&&first){ctx.font=`bold ${12*scale}px Arial`;ctx.textAlign='left';ctx.textBaseline='bottom';ctx.lineWidth=3*scale;ctx.strokeStyle='#fff';ctx.strokeText(route.name,first.x+7*scale,first.y-7*scale);ctx.fillStyle=route.colour||'#2563eb';ctx.fillText(route.name,first.x+7*scale,first.y-7*scale)}
+ ctx.restore();
+}
+function drawRiseFallCanvas(ctx,a,x,y){
+ const col=a.direction==='rise'?'#15803d':'#b42318',s=Math.max(1,scale);
+ ctx.save();ctx.translate(x,y);ctx.strokeStyle=col;ctx.fillStyle='#fff';ctx.lineWidth=2*s;
+ ctx.beginPath();ctx.arc(0,0,12*s,0,Math.PI*2);ctx.fill();ctx.stroke();
+ ctx.beginPath();
+ if(a.direction==='rise'){ctx.moveTo(0,6*s);ctx.lineTo(0,-6*s);ctx.moveTo(-4*s,-2*s);ctx.lineTo(0,-7*s);ctx.lineTo(4*s,-2*s)}
+ else{ctx.moveTo(0,-6*s);ctx.lineTo(0,6*s);ctx.moveTo(-4*s,2*s);ctx.lineTo(0,7*s);ctx.lineTo(4*s,2*s)}
+ ctx.stroke();
+ ctx.font=`bold ${8*s}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=col;ctx.fillText(a.direction==='rise'?'R':'F',0,17*s);
  ctx.restore();
 }
 function drawAnnotations(){
@@ -335,11 +350,12 @@ function drawAnnotations(){
  annotations().forEach(a=>{
   if(a.type==='route'){drawRouteCanvas(ctx,a);return}
   const pt=toDisplayPoint(a.x,a.y),x=pt.x*c.width,y=pt.y*c.height;
-  if(a.type==='symbol')drawSymbolCanvas(ctx,a,x,y);
+  if(a.type==='riseFall')drawRiseFallCanvas(ctx,a,x,y);
+  else if(a.type==='symbol')drawSymbolCanvas(ctx,a,x,y);
   else if(a.type==='photo'){const ph=(activeProject?.photos||[]).find(p=>p.id===a.photoId);drawPhotoPin(ctx,x,y,scale,ph?String(ph.photoNo||'').padStart(3,'0'):'')}
   else{ctx.font=`${a.fontSize||14}px Arial`;const lines=wrapText(ctx,a.text,210);const w=Math.max(...lines.map(l=>ctx.measureText(l).width))+14,h=lines.length*(a.fontSize||14)*1.3+12;ctx.fillStyle='#fffbe8';ctx.strokeStyle=a.colour||'#b45309';ctx.lineWidth=1.5;ctx.fillRect(x,y,w,h);ctx.strokeRect(x,y,w,h);ctx.fillStyle='#222';ctx.textAlign='left';ctx.textBaseline='top';lines.forEach((l,i)=>ctx.fillText(l,x+7,y+6+i*(a.fontSize||14)*1.3))}
  });
- if(routeDraft.length)drawRouteCanvas(ctx,{points:routeDraft,colour:routeDraft.colour||'#2563eb'},true);
+ if(routePaths.length)drawRouteCanvas(ctx,{paths:routePaths,colour:routeDraft.colour||'#2563eb'},true);
  if(pendingSymbolPlacement){
   const a=pendingSymbolPlacement,pt=toDisplayPoint(a.x,a.y),x=pt.x*c.width,y=pt.y*c.height;
   drawSymbolCanvas(ctx,a,x,y,true);
@@ -361,7 +377,7 @@ $('pageStage').addEventListener('click',e=>{
 function wrapText(ctx,text,max){let words=text.split(/\s+/),lines=[],line='';words.forEach(w=>{let t=line?line+' '+w:w;if(ctx.measureText(t).width>max&&line){lines.push(line);line=w}else line=t});if(line)lines.push(line);return lines}
 function renderSymbolTray(){}
 let pendingSymbol=null,placementReturnMode=null,placementGroup='All',pendingSymbolPlacement=null,rotateDragPointer=null;
-let routeDraft=[],lastRoutePointerUpAt=0;
+let routePaths=[],routeDraft=[],lastRoutePointerUpAt=0,lastRouteTap=null;
 function renderPlacementSymbols(){
  const symbols=db.symbols||[];
  const groups=['All',...Array.from(new Set(symbols.map(sym=>sym.service||'General')))];
@@ -418,16 +434,41 @@ function startSymbolPlacement(){
 }
 function startRoutePlacement(){
  if(!activeDrawing){toast('Import a PDF drawing first');return}
- pendingSymbol=null;pendingSymbolPlacement=null;routeDraft=[];routeDraft.colour='#2563eb';
+ pendingSymbol=null;pendingSymbolPlacement=null;routePaths=[[]];routeDraft=routePaths[0];routeDraft.colour='#2563eb';lastRouteTap=null;
  mode='route';syncOverlayInput();enterPlacementWindow();document.body.classList.add('route-mode');
  $('placementCurrent').textContent='Service route — tap the drawing to add the start point';
- $('placementComment').style.display='none';$('undoRoutePoint').style.display='inline-block';$('cancelRoute').style.display='inline-block';$('finishRoute').style.display='inline-block';$('placementDone').style.display='none';
+ $('placementComment').style.display='none';$('undoRoutePoint').style.display='inline-block';$('branchRoute').style.display='inline-block';$('cancelRoute').style.display='inline-block';$('finishRoute').style.display='inline-block';$('placementDone').style.display='none';
  drawAnnotations();toast('Tap the drawing to add route points');
 }
 function resetRouteControls(){
- document.body.classList.remove('route-mode');routeDraft=[];
- $('placementComment').style.display='';$('undoRoutePoint').style.display='none';$('cancelRoute').style.display='none';$('finishRoute').style.display='none';$('placementDone').style.display='';
+ document.body.classList.remove('route-mode');routeDraft=[];lastRouteTap=null;
+ $('placementComment').style.display='';$('undoRoutePoint').style.display='none';$('branchRoute').style.display='none';$('cancelRoute').style.display='none';$('finishRoute').style.display='none';$('placementDone').style.display='';
  drawAnnotations();
+}
+function openRiseFallPicker(pt){
+ const x=Math.max(0,Math.min(1,pt.x)),y=Math.max(0,Math.min(1,pt.y));
+ openModal(`<h2>Level change</h2><p class="muted">Choose the direction of the service rise or fall at this drawing position.</p><div class="actions"><button id="riseFallCancel">Cancel</button><button id="markRise" style="background:#dcfce7;color:#166534">↑ Rise</button><button id="markFall" style="background:#fee2e2;color:#991b1b">↓ Fall</button></div>`);
+ $('riseFallCancel').onclick=closeModal;
+ const place=(direction)=>{
+  pushUndo();activeDrawing.annotations.push({id:uid(),type:'riseFall',page:pageNo,x,y,direction});
+  saveDB();closeModal();drawAnnotations();
+  $('placementCurrent').textContent=`Service route — ${routePaths.reduce((n,path)=>n+path.length,0)} route point(s); ${direction==='rise'?'rise':'fall'} marker added`;
+  toast(`${direction==='rise'?'Rise':'Fall'} indication placed`);
+ };
+ $('markRise').onclick=()=>place('rise');
+ $('markFall').onclick=()=>place('fall');
+}
+function handleRouteTap(pt){
+ if(mode!=='route')return;
+ const now=Date.now(),last=lastRouteTap;
+ if(last&&now-last.time<420&&Math.hypot((pt.x-last.pt.x)*$('overlay').width,(pt.y-last.pt.y)*$('overlay').height)<28*scale){
+  // The first tap was provisionally added as a route point; remove it so the double-tap
+  // becomes a standalone rise/fall marker rather than an unwanted short route segment.
+  if(last.path===routeDraft&&routeDraft.length===last.lengthAfterTap)routeDraft.pop();
+  lastRouteTap=null;drawAnnotations();openRiseFallPicker(pt);return;
+ }
+ addRoutePoint(pt);
+ lastRouteTap={time:now,pt:{x:pt.x,y:pt.y},path:routeDraft,lengthAfterTap:routeDraft.length};
 }
 function addRoutePoint(pt){
  if(mode!=='route')return;
@@ -435,21 +476,33 @@ function addRoutePoint(pt){
  $('placementCurrent').textContent=`Service route — ${routeDraft.length} point${routeDraft.length===1?'':'s'} added`;
  drawAnnotations();
 }
-function undoRoutePoint(){if(!routeDraft.length)return;routeDraft.pop();$('placementCurrent').textContent=`Service route — ${routeDraft.length} point${routeDraft.length===1?'':'s'} added`;drawAnnotations()}
+function undoRoutePoint(){
+ if(!routeDraft.length){toast('No points on this branch to undo');return}
+ routeDraft.pop();
+ $('placementCurrent').textContent=`Service route — ${routePaths.reduce((n,path)=>n+path.length,0)} point(s) across ${routePaths.length} line${routePaths.length===1?'':'s'}`;
+ drawAnnotations();
+}
+function startRouteBranch(){
+ if(mode!=='route')return;
+ if(routeDraft.length<2){toast('Add at least two points to the current line before starting a branch');return}
+ routeDraft=[];routePaths.push(routeDraft);
+ $('placementCurrent').textContent=`Branch ${routePaths.length} — tap the drawing to start the branch`;
+ drawAnnotations();toast('Branch started — tap to add its points');
+}
 function cancelRoutePlacement(){
- routeDraft=[];mode=null;syncOverlayInput();resetRouteControls();document.body.classList.remove('placement-mode');toast('Route cancelled');
+ routePaths=[];routeDraft=[];mode=null;syncOverlayInput();resetRouteControls();document.body.classList.remove('placement-mode');toast('Route cancelled');
 }
 function finishRoutePlacement(){
- if(routeDraft.length<2){toast('Add at least two points to finish the route');return}
+ if(routePaths.length===0||routePaths.some(path=>path.length<2)){toast('Each route line and branch needs at least two points');return}
  openModal(`<h2>Save service route</h2><label>Service / route name</label><input id="routeName" placeholder="e.g. Lighting circuit containment"><label>Route colour</label><select id="routeColour"><option value="#2563eb">Blue</option><option value="#16a34a">Green</option><option value="#dc2626">Red</option><option value="#d97706">Amber</option><option value="#7c3aed">Purple</option><option value="#0891b2">Cyan</option><option value="#be185d">Magenta</option><option value="#475569">Grey</option></select><div class="actions"><button id="routeSaveCancel">Cancel</button><button id="routeSaveConfirm" class="primary">Save route</button></div>`);
  $('routeSaveCancel').onclick=closeModal;
  $('routeSaveConfirm').onclick=()=>{
   const name=$('routeName').value.trim();if(!name){toast('Enter a route name');return}
-  pushUndo();activeDrawing.annotations.push({id:uid(),type:'route',page:pageNo,name,colour:$('routeColour').value,points:routeDraft.map(p=>({...p}))});
+  pushUndo();activeDrawing.annotations.push({id:uid(),type:'route',page:pageNo,name,colour:$('routeColour').value,points:routePaths[0].map(p=>({...p})),paths:routePaths.map(path=>path.map(p=>({...p})))});
   saveDB();closeModal();mode=null;syncOverlayInput();resetRouteControls();document.body.classList.remove('placement-mode');toast('Service route saved');
  };
 }
-$('undoRoutePoint').onclick=undoRoutePoint;$('cancelRoute').onclick=cancelRoutePlacement;$('finishRoute').onclick=finishRoutePlacement;
+$('undoRoutePoint').onclick=undoRoutePoint;$('branchRoute').onclick=startRouteBranch;$('cancelRoute').onclick=cancelRoutePlacement;$('finishRoute').onclick=finishRoutePlacement;
 $('placeSymbol').onclick=startSymbolPlacement;$('bottomSymbol').onclick=startSymbolPlacement;$('placeComment').onclick=startCommentPlacement;$('bottomComment').onclick=startCommentPlacement;$('placePhotoPin').onclick=startPhotoPin;$('placeRoute').onclick=startRoutePlacement;
 // In symbol placement mode, distinguish taps (place) from drag/pinch (navigate).
 const activeTouches=new Map();let gesture=null,pinchGesture=null;
@@ -515,7 +568,7 @@ async function commitPinchZoom(){if(!pinchGesture||!pinchGesture.changed)return;
 function finishPlacementPointer(e){if(!activeTouches.has(e.pointerId))return;const wasSingle=activeTouches.size===1,g=gesture;activeTouches.delete(e.pointerId);
  if(rotateDragPointer===e.pointerId){rotateDragPointer=null;gesture=null;return}
  if(commitSymbolPointer===e.pointerId){commitSymbolPointer=null;gesture=null;commitSymbolPlacement();return}
- if(wasSingle&&g&&!g.moved){const pt=displayPointFromClient(e.clientX,e.clientY);if(mode==='route'){addRoutePoint(pt);lastRoutePointerUpAt=Date.now()}else if(mode==='symbol')placeSymbolAt(pt.x,pt.y);else if(mode==='symbolPreview'&&pendingSymbolPlacement){pendingSymbolPlacement.x=pt.x;pendingSymbolPlacement.y=pt.y;drawAnnotations()}else if(mode==='photo'){pendingPoint=pt;mode=null;syncOverlayInput();openPhotoCapturePrompt()}else if(mode==='comment'){pendingPoint=pt;placementReturnMode=document.body.classList.contains('placement-mode')?(pendingSymbol?'symbol':null):null;mode=null;syncOverlayInput();openCommentEditor()}}
+ if(wasSingle&&g&&!g.moved){const pt=displayPointFromClient(e.clientX,e.clientY);if(mode==='route'){handleRouteTap(pt);lastRoutePointerUpAt=Date.now()}else if(mode==='symbol')placeSymbolAt(pt.x,pt.y);else if(mode==='symbolPreview'&&pendingSymbolPlacement){pendingSymbolPlacement.x=pt.x;pendingSymbolPlacement.y=pt.y;drawAnnotations()}else if(mode==='photo'){pendingPoint=pt;mode=null;syncOverlayInput();openPhotoCapturePrompt()}else if(mode==='comment'){pendingPoint=pt;placementReturnMode=document.body.classList.contains('placement-mode')?(pendingSymbol?'symbol':null):null;mode=null;syncOverlayInput();openCommentEditor()}}
  if(activeTouches.size===0){commitPinchZoom();gesture=null;pinchGesture=null}}
 $('overlay').addEventListener('pointerup',finishPlacementPointer);
 $('overlay').addEventListener('click',e=>{
@@ -649,10 +702,22 @@ async function exportPdf(){
  const drawingPhotos=(activeProject?.photos||[]).filter(ph=>ph.drawingId===activeDrawing.id).sort((a,b)=>String(a.photoNo||'').localeCompare(String(b.photoNo||''),undefined,{numeric:true}));
  for(const a of activeDrawing.annotations){const p=pages[a.page-1];if(!p)continue;const {width,height}=p.getSize(),x=a.x*width,y=(1-a.y)*height;
   if(a.type==='route'){
-   const pts=(a.points||[]).map(pt=>({x:pt.x*width,y:(1-pt.y)*height})),col=hexRgb(a.colour||'#2563eb');
-   for(let i=1;i<pts.length;i++)p.drawLine({start:pts[i-1],end:pts[i],thickness:2.5,color:rgb(...col)});
-   pts.forEach(pt=>p.drawCircle({x:pt.x,y:pt.y,size:3,borderColor:rgb(...col),borderWidth:.8,color:rgb(...col)}));
-   if(pts.length&&a.name)p.drawText(String(a.name).slice(0,55),{x:pts[0].x+6,y:pts[0].y+6,size:9,font:bold,color:rgb(...col)});
+   const paths=a.paths||[a.points||[]],col=hexRgb(a.colour||'#2563eb');let firstPoint=null;
+   paths.forEach(path=>{
+    const pts=path.map(pt=>({x:pt.x*width,y:(1-pt.y)*height}));
+    if(!firstPoint&&pts.length)firstPoint=pts[0];
+    for(let i=1;i<pts.length;i++)p.drawLine({start:pts[i-1],end:pts[i],thickness:2.5,color:rgb(...col)});
+    pts.forEach(pt=>p.drawCircle({x:pt.x,y:pt.y,size:3,borderColor:rgb(...col),borderWidth:.8,color:rgb(...col)}));
+   });
+   if(firstPoint&&a.name)p.drawText(String(a.name).slice(0,55),{x:firstPoint.x+6,y:firstPoint.y+6,size:9,font:bold,color:rgb(...col)});
+  }
+  else if(a.type==='riseFall'){
+   const rise=a.direction==='rise',col=rise?[.08,.5,.22]:[.7,.12,.12],tipY=y+(rise?10:-10),baseY=y+(rise?-7:7);
+   p.drawCircle({x,y,size:9,borderColor:rgb(...col),borderWidth:1.4,color:rgb(1,1,1)});
+   p.drawLine({start:{x,y:baseY},end:{x,y:tipY},thickness:1.8,color:rgb(...col)});
+   p.drawLine({start:{x,y:tipY},end:{x:x-4,y:tipY+(rise?-4:4)},thickness:1.8,color:rgb(...col)});
+   p.drawLine({start:{x,y:tipY},end:{x:x+4,y:tipY+(rise?-4:4)},thickness:1.8,color:rgb(...col)});
+   p.drawText(rise?'R':'F',{x:x-2.3,y:y-16,size:6.5,font:bold,color:rgb(...col)});
   }
   else if(a.type==='symbol'){
    const sz=(a.size||16)>30?16:(a.size||16),col=hexRgb(a.colour),stroke=Math.max(.8,sz*.065),angle=-(a.rotation||0);
