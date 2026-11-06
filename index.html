@@ -482,6 +482,15 @@ $('overlay').addEventListener('click',e=>{
   const pt=displayPointFromClient(e.clientX,e.clientY);
   pendingPoint=pt;mode=null;syncOverlayInput();openPhotoCapturePrompt();
  }
+ // Comment fallback for iPhone Safari.
+if(mode==='comment'){
+  const pt=displayPointFromClient(e.clientX,e.clientY);
+  pendingPoint=pt;
+  placementReturnMode=document.body.classList.contains('placement-mode')?(pendingSymbol?'symbol':null):null;
+  mode=null;
+  syncOverlayInput();
+  openCommentEditor();
+}
 });
 
 $('overlay').addEventListener('pointercancel',e=>{activeTouches.delete(e.pointerId);if(activeTouches.size===0){if(pinchGesture?.changed)commitPinchZoom();else{$('pageStage').style.transform='none';$('pageStage').style.transformOrigin='0 0'}gesture=null;pinchGesture=null}});
