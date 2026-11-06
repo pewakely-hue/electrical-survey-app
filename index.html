@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#142333">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Electrical Survey v2.6</title>
+<title>Electrical Survey v2.7</title>
 <link rel="manifest" href="manifest.webmanifest">
 <style>
 :root{--navy:#142333;--blue:#2463eb;--bg:#eef2f6;--ink:#17212b;--muted:#657383;--line:#d8e0e8;--panel:#fff;--safe-bottom:env(safe-area-inset-bottom,0px)}
@@ -88,7 +88,9 @@ body.placement-mode #placementCurrent{font-weight:700;font-size:13px}
 #placementSymbols button small{display:block;font-size:9px;color:#526273}
 body.placement-mode .placementHint{font-size:10px;color:#c4d0dc}
 body.placement-mode #overlay{pointer-events:auto;touch-action:none}
-\n@media(min-width:700px){main{padding-top:22px}#drawingWrap{max-height:72vh}}
+
+body.route-mode #placementGroups,body.route-mode #placementSymbols,body.route-mode .placementHint{display:none!important}
+@media(min-width:700px){main{padding-top:22px}#drawingWrap{max-height:72vh}}
 </style>
 </head>
 <body>
@@ -120,7 +122,7 @@ body.placement-mode #overlay{pointer-events:auto;touch-action:none}
   <div id="pageStage"><div id="emptyDrawing">Import a PDF drawing to begin.<br><br>Use Add PDF to create another service drawing.</div><canvas id="pdfCanvas"></canvas><canvas id="overlay"></canvas></div>
  </div>
  <div class="card" style="padding:10px">
-  <div class="row"><button class="primary" id="placeSymbol">＋ Symbol</button><button class="primary" id="placeComment">＋ Comment</button><button class="primary" id="placePhotoPin">📷 Photo Pin</button></div><div class="row" style="margin-top:7px"><button id="finishPlacement">Done</button><button id="undoBtn">Undo</button><button id="redoBtn">Redo</button></div>
+  <div class="row"><button class="primary" id="placeSymbol">＋ Symbol</button><button class="primary" id="placeComment">＋ Comment</button><button class="primary" id="placePhotoPin">📷 Photo Pin</button><button class="primary" id="placeRoute">↗ Service Route</button></div><div class="row" style="margin-top:7px"><button id="finishPlacement">Done</button><button id="undoBtn">Undo</button><button id="redoBtn">Redo</button></div>
   <div class="row"><button id="addSymbol">Edit symbol library</button><button id="exportPdf" class="primary">Export PDF</button><button id="exportProject">Backup project</button></div>
  </div>
  <div class="muted" style="padding:0 4px">Tip: use one finger to scroll/pan the drawing and pinch with two fingers to zoom. Select a symbol to place it repeatedly; press Done to return to navigation.</div>
@@ -142,7 +144,7 @@ body.placement-mode #overlay{pointer-events:auto;touch-action:none}
 
 <div class="bottomBar" id="bottomBar"><div class="row"><button id="bottomSymbol" class="primary">Symbol</button><button id="bottomComment" class="primary">Comment</button><button id="bottomSave">Save</button></div></div>
 <div id="placementHUD" aria-live="polite">
- <div class="placementTop"><button id="placementComment">＋ Comment</button><button id="cancelSymbolPlacement" style="display:none">Cancel</button><button id="placementDone" class="primary">Done</button><span id="placementTitle">Place symbols</span></div>
+ <div class="placementTop"><button id="placementComment">＋ Comment</button><button id="undoRoutePoint" style="display:none">Undo Point</button><button id="cancelRoute" style="display:none">Cancel Route</button><button id="finishRoute" class="primary" style="display:none">Finish Route</button><button id="cancelSymbolPlacement" style="display:none">Cancel</button><button id="placementDone" class="primary">Done</button><span id="placementTitle">Place symbols</span></div>
  <div class="placementBottom">
   <div id="placementCurrent">Select a symbol</div>
   <div id="placementGroups" aria-label="Filter symbols by service"></div>
@@ -317,14 +319,27 @@ function drawPhotoPin(ctx,x,y,s=1,num=''){
  ctx.fillStyle='#0f6b8f';ctx.beginPath();ctx.arc(0,0,2.6*s,0,Math.PI*2);ctx.fill();
  if(num){ctx.font=`bold ${Math.max(9,9*s)}px Arial`;ctx.textAlign='left';ctx.textBaseline='middle';const tw=ctx.measureText(num).width;ctx.fillStyle='#fff';ctx.strokeStyle='#0f6b8f';ctx.lineWidth=1.5;ctx.beginPath();ctx.rect(8*s,-17*s,tw+7*s,13*s);ctx.fill();ctx.stroke();ctx.fillStyle='#0f6b8f';ctx.fillText(num,11*s,-10.5*s)}ctx.restore();
 }
+function drawRouteCanvas(ctx,route,preview=false){
+ const c=$('overlay'),pts=(route.points||[]).map(p=>{const q=toDisplayPoint(p.x,p.y);return{x:q.x*c.width,y:q.y*c.height}});
+ if(!pts.length)return;
+ ctx.save();ctx.strokeStyle=route.colour||'#2563eb';ctx.fillStyle=route.colour||'#2563eb';ctx.lineWidth=3*scale;ctx.lineJoin='round';ctx.lineCap='round';
+ if(preview)ctx.setLineDash([7*scale,4*scale]);
+ if(pts.length>1){ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);pts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke()}
+ ctx.setLineDash([]);
+ pts.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,4.2*scale,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.5*scale;ctx.stroke()});
+ if(route.name){ctx.font=`bold ${12*scale}px Arial`;ctx.textAlign='left';ctx.textBaseline='bottom';ctx.lineWidth=3*scale;ctx.strokeStyle='#fff';ctx.strokeText(route.name,pts[0].x+7*scale,pts[0].y-7*scale);ctx.fillStyle=route.colour||'#2563eb';ctx.fillText(route.name,pts[0].x+7*scale,pts[0].y-7*scale)}
+ ctx.restore();
+}
 function drawAnnotations(){
  const c=$('overlay'),ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);
  annotations().forEach(a=>{
+  if(a.type==='route'){drawRouteCanvas(ctx,a);return}
   const pt=toDisplayPoint(a.x,a.y),x=pt.x*c.width,y=pt.y*c.height;
   if(a.type==='symbol')drawSymbolCanvas(ctx,a,x,y);
   else if(a.type==='photo'){const ph=(activeProject?.photos||[]).find(p=>p.id===a.photoId);drawPhotoPin(ctx,x,y,scale,ph?String(ph.photoNo||'').padStart(3,'0'):'')}
   else{ctx.font=`${a.fontSize||14}px Arial`;const lines=wrapText(ctx,a.text,210);const w=Math.max(...lines.map(l=>ctx.measureText(l).width))+14,h=lines.length*(a.fontSize||14)*1.3+12;ctx.fillStyle='#fffbe8';ctx.strokeStyle=a.colour||'#b45309';ctx.lineWidth=1.5;ctx.fillRect(x,y,w,h);ctx.strokeRect(x,y,w,h);ctx.fillStyle='#222';ctx.textAlign='left';ctx.textBaseline='top';lines.forEach((l,i)=>ctx.fillText(l,x+7,y+6+i*(a.fontSize||14)*1.3))}
  });
+ if(routeDraft.length)drawRouteCanvas(ctx,{points:routeDraft,colour:routeDraft.colour||'#2563eb'},true);
  if(pendingSymbolPlacement){
   const a=pendingSymbolPlacement,pt=toDisplayPoint(a.x,a.y),x=pt.x*c.width,y=pt.y*c.height;
   drawSymbolCanvas(ctx,a,x,y,true);
@@ -346,6 +361,7 @@ $('pageStage').addEventListener('click',e=>{
 function wrapText(ctx,text,max){let words=text.split(/\s+/),lines=[],line='';words.forEach(w=>{let t=line?line+' '+w:w;if(ctx.measureText(t).width>max&&line){lines.push(line);line=w}else line=t});if(line)lines.push(line);return lines}
 function renderSymbolTray(){}
 let pendingSymbol=null,placementReturnMode=null,placementGroup='All',pendingSymbolPlacement=null,rotateDragPointer=null;
+let routeDraft=[],lastRoutePointerUpAt=0;
 function renderPlacementSymbols(){
  const symbols=db.symbols||[];
  const groups=['All',...Array.from(new Set(symbols.map(sym=>sym.service||'General')))];
@@ -400,7 +416,41 @@ function startSymbolPlacement(){
  mode='symbol';pendingSymbol=null;syncOverlayInput();enterPlacementWindow();
  toast('Choose a symbol from the strip, then tap the drawing');
 }
-$('placeSymbol').onclick=startSymbolPlacement;$('bottomSymbol').onclick=startSymbolPlacement;$('placeComment').onclick=startCommentPlacement;$('bottomComment').onclick=startCommentPlacement;$('placePhotoPin').onclick=startPhotoPin;
+function startRoutePlacement(){
+ if(!activeDrawing){toast('Import a PDF drawing first');return}
+ pendingSymbol=null;pendingSymbolPlacement=null;routeDraft=[];routeDraft.colour='#2563eb';
+ mode='route';syncOverlayInput();enterPlacementWindow();document.body.classList.add('route-mode');
+ $('placementCurrent').textContent='Service route — tap the drawing to add the start point';
+ $('placementComment').style.display='none';$('undoRoutePoint').style.display='inline-block';$('cancelRoute').style.display='inline-block';$('finishRoute').style.display='inline-block';$('placementDone').style.display='none';
+ drawAnnotations();toast('Tap the drawing to add route points');
+}
+function resetRouteControls(){
+ document.body.classList.remove('route-mode');routeDraft=[];
+ $('placementComment').style.display='';$('undoRoutePoint').style.display='none';$('cancelRoute').style.display='none';$('finishRoute').style.display='none';$('placementDone').style.display='';
+ drawAnnotations();
+}
+function addRoutePoint(pt){
+ if(mode!=='route')return;
+ routeDraft.push({x:Math.max(0,Math.min(1,pt.x)),y:Math.max(0,Math.min(1,pt.y))});
+ $('placementCurrent').textContent=`Service route — ${routeDraft.length} point${routeDraft.length===1?'':'s'} added`;
+ drawAnnotations();
+}
+function undoRoutePoint(){if(!routeDraft.length)return;routeDraft.pop();$('placementCurrent').textContent=`Service route — ${routeDraft.length} point${routeDraft.length===1?'':'s'} added`;drawAnnotations()}
+function cancelRoutePlacement(){
+ routeDraft=[];mode=null;syncOverlayInput();resetRouteControls();document.body.classList.remove('placement-mode');toast('Route cancelled');
+}
+function finishRoutePlacement(){
+ if(routeDraft.length<2){toast('Add at least two points to finish the route');return}
+ openModal(`<h2>Save service route</h2><label>Service / route name</label><input id="routeName" placeholder="e.g. Lighting circuit containment"><label>Route colour</label><select id="routeColour"><option value="#2563eb">Blue</option><option value="#16a34a">Green</option><option value="#dc2626">Red</option><option value="#d97706">Amber</option><option value="#7c3aed">Purple</option><option value="#0891b2">Cyan</option><option value="#be185d">Magenta</option><option value="#475569">Grey</option></select><div class="actions"><button id="routeSaveCancel">Cancel</button><button id="routeSaveConfirm" class="primary">Save route</button></div>`);
+ $('routeSaveCancel').onclick=closeModal;
+ $('routeSaveConfirm').onclick=()=>{
+  const name=$('routeName').value.trim();if(!name){toast('Enter a route name');return}
+  pushUndo();activeDrawing.annotations.push({id:uid(),type:'route',page:pageNo,name,colour:$('routeColour').value,points:routeDraft.map(p=>({...p}))});
+  saveDB();closeModal();mode=null;syncOverlayInput();resetRouteControls();document.body.classList.remove('placement-mode');toast('Service route saved');
+ };
+}
+$('undoRoutePoint').onclick=undoRoutePoint;$('cancelRoute').onclick=cancelRoutePlacement;$('finishRoute').onclick=finishRoutePlacement;
+$('placeSymbol').onclick=startSymbolPlacement;$('bottomSymbol').onclick=startSymbolPlacement;$('placeComment').onclick=startCommentPlacement;$('bottomComment').onclick=startCommentPlacement;$('placePhotoPin').onclick=startPhotoPin;$('placeRoute').onclick=startRoutePlacement;
 // In symbol placement mode, distinguish taps (place) from drag/pinch (navigate).
 const activeTouches=new Map();let gesture=null,pinchGesture=null;
 let lastSymbolPreviewAt=0;
@@ -465,7 +515,7 @@ async function commitPinchZoom(){if(!pinchGesture||!pinchGesture.changed)return;
 function finishPlacementPointer(e){if(!activeTouches.has(e.pointerId))return;const wasSingle=activeTouches.size===1,g=gesture;activeTouches.delete(e.pointerId);
  if(rotateDragPointer===e.pointerId){rotateDragPointer=null;gesture=null;return}
  if(commitSymbolPointer===e.pointerId){commitSymbolPointer=null;gesture=null;commitSymbolPlacement();return}
- if(wasSingle&&g&&!g.moved){const pt=displayPointFromClient(e.clientX,e.clientY);if(mode==='symbol')placeSymbolAt(pt.x,pt.y);else if(mode==='symbolPreview'&&pendingSymbolPlacement){pendingSymbolPlacement.x=pt.x;pendingSymbolPlacement.y=pt.y;drawAnnotations()}else if(mode==='photo'){pendingPoint=pt;mode=null;syncOverlayInput();openPhotoCapturePrompt()}else if(mode==='comment'){pendingPoint=pt;placementReturnMode=document.body.classList.contains('placement-mode')?(pendingSymbol?'symbol':null):null;mode=null;syncOverlayInput();openCommentEditor()}}
+ if(wasSingle&&g&&!g.moved){const pt=displayPointFromClient(e.clientX,e.clientY);if(mode==='route'){addRoutePoint(pt);lastRoutePointerUpAt=Date.now()}else if(mode==='symbol')placeSymbolAt(pt.x,pt.y);else if(mode==='symbolPreview'&&pendingSymbolPlacement){pendingSymbolPlacement.x=pt.x;pendingSymbolPlacement.y=pt.y;drawAnnotations()}else if(mode==='photo'){pendingPoint=pt;mode=null;syncOverlayInput();openPhotoCapturePrompt()}else if(mode==='comment'){pendingPoint=pt;placementReturnMode=document.body.classList.contains('placement-mode')?(pendingSymbol?'symbol':null):null;mode=null;syncOverlayInput();openCommentEditor()}}
  if(activeTouches.size===0){commitPinchZoom();gesture=null;pinchGesture=null}}
 $('overlay').addEventListener('pointerup',finishPlacementPointer);
 $('overlay').addEventListener('click',e=>{
@@ -598,7 +648,13 @@ async function exportPdf(){
  ensurePhotoNumbers(activeProject);
  const drawingPhotos=(activeProject?.photos||[]).filter(ph=>ph.drawingId===activeDrawing.id).sort((a,b)=>String(a.photoNo||'').localeCompare(String(b.photoNo||''),undefined,{numeric:true}));
  for(const a of activeDrawing.annotations){const p=pages[a.page-1];if(!p)continue;const {width,height}=p.getSize(),x=a.x*width,y=(1-a.y)*height;
-  if(a.type==='symbol'){
+  if(a.type==='route'){
+   const pts=(a.points||[]).map(pt=>({x:pt.x*width,y:(1-pt.y)*height})),col=hexRgb(a.colour||'#2563eb');
+   for(let i=1;i<pts.length;i++)p.drawLine({start:pts[i-1],end:pts[i],thickness:2.5,color:rgb(...col)});
+   pts.forEach(pt=>p.drawCircle({x:pt.x,y:pt.y,size:3,borderColor:rgb(...col),borderWidth:.8,color:rgb(...col)}));
+   if(pts.length&&a.name)p.drawText(String(a.name).slice(0,55),{x:pts[0].x+6,y:pts[0].y+6,size:9,font:bold,color:rgb(...col)});
+  }
+  else if(a.type==='symbol'){
    const sz=(a.size||16)>30?16:(a.size||16),col=hexRgb(a.colour),stroke=Math.max(.8,sz*.065),angle=-(a.rotation||0);
    p.pushOperators(PDFLib.pushGraphicsState(),PDFLib.translate(x,y),PDFLib.rotateDegrees(angle),PDFLib.translate(-x,-y));
    if(a.shape==='circle')p.drawEllipse({x,y,xScale:sz/2,yScale:sz/2,borderColor:rgb(...col),borderWidth:stroke,color:rgb(1,1,1)});
@@ -663,7 +719,7 @@ async function exportPdf(){
  if(drawingPhotos.length){let registerPage=null,slot=0;for(const ph of drawingPhotos){if(!registerPage||slot>=2){registerPage=doc.addPage(pageSize);slot=0;registerPage.drawText('PHOTOGRAPH REGISTER',{x:42,y:796,size:18,font:bold,color:rgb(.08,.14,.2)});registerPage.drawText(activeProject?.name||'Survey project',{x:42,y:777,size:9,font,color:rgb(.35,.4,.46)});registerPage.drawText(activeDrawing.name,{x:42,y:762,size:10,font:bold,color:rgb(.12,.2,.28)});}const yTop=728-slot*330,code=String(ph.photoNo||'').padStart(3,'0');registerPage.drawText(code,{x:42,y:yTop,size:13,font:bold,color:rgb(.06,.42,.56)});registerPage.drawText(String(ph.caption||'Site photograph').slice(0,70),{x:88,y:yTop+1,size:10,font:bold,color:rgb(.12,.16,.2)});registerPage.drawText(`${ph.drawingName||activeDrawing.name} · Page ${ph.page||1} · ${new Date(ph.takenAt).toLocaleDateString()}`,{x:88,y:yTop-14,size:8,font,color:rgb(.35,.4,.46)});
    try{const photoBlob=await getPhotoBlob(ph.id);if(photoBlob){let bytes=await photoBlob.arrayBuffer(),embedded;try{embedded=photoBlob.type==='image/png'?await doc.embedPng(bytes):await doc.embedJpg(bytes)}catch(e){const imgUrl=URL.createObjectURL(photoBlob);try{const img=await new Promise((resolve,reject)=>{const el=new Image();el.onload=()=>resolve(el);el.onerror=reject;el.src=imgUrl});const canvas=document.createElement('canvas');canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;canvas.getContext('2d').drawImage(img,0,0);const jpeg=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.88));embedded=await doc.embedJpg(await jpeg.arrayBuffer())}finally{URL.revokeObjectURL(imgUrl)}}const dims=embedded.scale(1),maxW=500,maxH=260,factor=Math.min(maxW/dims.width,maxH/dims.height,1);registerPage.drawImage(embedded,{x:48,y:yTop-292,width:dims.width*factor,height:dims.height*factor})}else registerPage.drawText('Photo file unavailable on this device',{x:48,y:yTop-65,size:9,font,color:rgb(.7,.15,.15)})}catch(err){console.warn('Photo could not be embedded',err);registerPage.drawText('Photo could not be embedded',{x:48,y:yTop-65,size:9,font,color:rgb(.7,.15,.15)})}slot++;
   }}
- const bytes=await doc.save(),blob=new Blob([bytes],{type:'application/pdf'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=activeDrawing.name+' - survey report.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Drawing, symbol key and photo register exported')
+ const bytes=await doc.save(),blob=new Blob([bytes],{type:'application/pdf'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=activeDrawing.name+' - survey report.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Drawing, routes, symbol key and photo register exported')
  }catch(e){console.error(e);toast('PDF export failed')}
 }
 function hexRgb(h){h=(h||'#000000').replace('#','');return [0,2,4].map(i=>parseInt(h.slice(i,i+2),16)/255)}
