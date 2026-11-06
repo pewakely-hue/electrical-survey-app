@@ -613,7 +613,45 @@ async function exportPdf(){
    p.drawCircle({x,y,size:7,borderColor:rgb(.06,.42,.56),borderWidth:1.5,color:rgb(.06,.42,.56)});p.drawRectangle({x:x-3.5,y:y-2.5,width:7,height:5,borderColor:rgb(1,1,1),borderWidth:.8,color:rgb(1,1,1)});p.drawCircle({x,y,size:1.2,color:rgb(.06,.42,.56)});
    p.drawRectangle({x:x+8,y:y-5,width:24,height:10,color:rgb(1,1,1),borderColor:rgb(.06,.42,.56),borderWidth:.8});p.drawText(code,{x:x+9.5,y:y-2.2,size:6.5,font:bold,color:rgb(.06,.42,.56)});
   }
-  else{const lines=a.text.match(/.{1,42}(\s|$)/g)||[a.text],fs=Math.min(a.fontSize||10,14),h=lines.length*(fs+3)+8,w=Math.min(260,Math.max(...lines.map(l=>font.widthOfTextAtSize(l.trim(),fs)))+12);p.drawRectangle({x,y:y-h,width:w,height:h,color:rgb(1,.98,.88),borderColor:rgb(.7,.42,.05),borderWidth:1});lines.forEach((l,i)=>p.drawText(l.trim(),{x:x+6,y:y-h+5+(lines.length-1-i)*(fs+3),size:fs,font,color:rgb(.12,.12,.12)}))}
+  else{
+  const fs=Math.min(a.fontSize||10,14);
+  const maxLineWidth=148;
+  const words=String(a.text||'').split(/\s+/);
+  const lines=[];
+  let line='';
+  words.forEach(word=>{
+    let test=line?line+' '+word:word;
+    if(font.widthOfTextAtSize(test,fs)>maxLineWidth&&line){
+      lines.push(line);
+      line=word;
+    }else line=test;
+  });
+  if(line)lines.push(line);
+  const w=Math.min(160,Math.max(40,...lines.map(l=>font.widthOfTextAtSize(l,fs)+12)));
+  const h=lines.length*(fs+3)+10;
+  p.pushOperators(
+    PDFLib.pushGraphicsState(),
+    PDFLib.translate(x,y),
+    PDFLib.rotateDegrees(-(activeDrawing.rotation||0)),
+    PDFLib.translate(-x,-y)
+  );
+  p.drawRectangle({
+    x,y:y-h,width:w,height:h,
+    color:rgb(1,.98,.88),
+    borderColor:rgb(.7,.42,.05),
+    borderWidth:1
+  });
+  lines.forEach((l,i)=>{
+    p.drawText(l,{
+      x:x+6,
+      y:y-h+5+(lines.length-1-i)*(fs+3),
+      size:fs,
+      font,
+      color:rgb(.12,.12,.12)
+    });
+  });
+  p.pushOperators(PDFLib.popGraphicsState());
+}
  }
  // Symbol key: only symbols actually placed on this drawing.
  const usedSymbols=[];for(const a of activeDrawing.annotations||[]){if(a.type!=='symbol')continue;const key=(a.label||'')+'|'+(a.name||'');if(!usedSymbols.some(x=>x.key===key)){const lib=(db.symbols||[]).find(s=>s.label===a.label&&(!a.service||s.service===a.service)&&(s.name===a.name||!a.name));usedSymbols.push({key,label:a.label||'',name:lib?.name||a.name||a.label||'Symbol',service:lib?.service||a.service||'General',shape:a.shape||lib?.shape||'symbol',colour:a.colour||lib?.colour||'#2563eb'})}}
