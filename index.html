@@ -747,7 +747,7 @@ async function exportPdf(){
    p.drawText(rise?'R':'F',{x:x-2.3,y:y-16,size:6.5,font:bold,color:rgb(...col)});
   }
   else if(a.type==='symbol'){
-   const sz=(a.size||16)>30?16:(a.size||16),col=hexRgb(a.colour),stroke=Math.max(.8,sz*.065),angle=-(a.rotation||0)-(activeDrawing.rotation||0);
+   const sz=(a.size||16)>30?16:(a.size||16),col=hexRgb(a.colour),stroke=Math.max(.8,sz*.065),angle=-(a.rotation||0)+(activeDrawing.rotation||0);
    p.pushOperators(PDFLib.pushGraphicsState(),PDFLib.translate(x,y),PDFLib.rotateDegrees(angle),PDFLib.translate(-x,-y));
    if(a.shape==='circle')p.drawEllipse({x,y,xScale:sz/2,yScale:sz/2,borderColor:rgb(...col),borderWidth:stroke,color:rgb(1,1,1)});
    else if(a.shape==='square')p.drawRectangle({x:x-sz/2,y:y-sz/2,width:sz,height:sz,borderColor:rgb(...col),borderWidth:stroke,color:rgb(1,1,1)});
@@ -760,7 +760,7 @@ async function exportPdf(){
    const ph=drawingPhotos.find(q=>q.id===a.photoId),code=ph?String(ph.photoNo||'').padStart(3,'0'):'---';
    // Counter-rotate the pin artwork around its anchor so the camera symbol and
    // photo reference remain upright when the exported PDF page is rotated.
-   p.pushOperators(PDFLib.pushGraphicsState(),PDFLib.translate(x,y),PDFLib.rotateDegrees(-(activeDrawing.rotation||0)),PDFLib.translate(-x,-y));
+   p.pushOperators(PDFLib.pushGraphicsState(),PDFLib.translate(x,y),PDFLib.rotateDegrees((activeDrawing.rotation||0)),PDFLib.translate(-x,-y));
    p.drawCircle({x,y,size:7,borderColor:rgb(.06,.42,.56),borderWidth:1.5,color:rgb(.06,.42,.56)});p.drawRectangle({x:x-3.5,y:y-2.5,width:7,height:5,borderColor:rgb(1,1,1),borderWidth:.8,color:rgb(1,1,1)});p.drawCircle({x,y,size:1.2,color:rgb(.06,.42,.56)});
    p.drawRectangle({x:x+8,y:y-5,width:24,height:10,color:rgb(1,1,1),borderColor:rgb(.06,.42,.56),borderWidth:.8});p.drawText(code,{x:x+9.5,y:y-2.2,size:6.5,font:bold,color:rgb(.06,.42,.56)});
    p.pushOperators(PDFLib.popGraphicsState());
@@ -784,7 +784,7 @@ async function exportPdf(){
   p.pushOperators(
     PDFLib.pushGraphicsState(),
     PDFLib.translate(x,y),
-    PDFLib.rotateDegrees(-(activeDrawing.rotation||0)),
+    PDFLib.rotateDegrees((activeDrawing.rotation||0)),
     PDFLib.translate(-x,-y)
   );
   p.drawRectangle({
