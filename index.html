@@ -377,7 +377,7 @@ $('pageStage').addEventListener('click',e=>{
 function wrapText(ctx,text,max){let words=text.split(/\s+/),lines=[],line='';words.forEach(w=>{let t=line?line+' '+w:w;if(ctx.measureText(t).width>max&&line){lines.push(line);line=w}else line=t});if(line)lines.push(line);return lines}
 function renderSymbolTray(){}
 let pendingSymbol=null,placementReturnMode=null,placementGroup='All',pendingSymbolPlacement=null,rotateDragPointer=null;
-let routePaths=[],routeDraft=[],lastRoutePointerUpAt=0,lastRouteTap=null;
+let routePaths=[],routeDraft=[],lastRoutePointerUpAt=0,lastRouteTap=null,routeBranchPending=false;
 function renderPlacementSymbols(){
  const symbols=db.symbols||[];
  const groups=['All',...Array.from(new Set(symbols.map(sym=>sym.service||'General')))];
@@ -434,14 +434,14 @@ function startSymbolPlacement(){
 }
 function startRoutePlacement(){
  if(!activeDrawing){toast('Import a PDF drawing first');return}
- pendingSymbol=null;pendingSymbolPlacement=null;routePaths=[[]];routeDraft=routePaths[0];routeDraft.colour='#2563eb';lastRouteTap=null;routePointerStart=null;routeLastInputAt=0;routeLastInputPoint=null;
+ pendingSymbol=null;pendingSymbolPlacement=null;routePaths=[[]];routeDraft=routePaths[0];routeDraft.colour='#2563eb';lastRouteTap=null;routeBranchPending=false;routePointerStart=null;routeLastInputAt=0;routeLastInputPoint=null;
  mode='route';syncOverlayInput();enterPlacementWindow();document.body.classList.add('route-mode');
  $('placementCurrent').textContent='Service route — tap the drawing to add the start point';
  $('placementComment').style.display='none';$('undoRoutePoint').style.display='inline-block';$('branchRoute').style.display='inline-block';$('cancelRoute').style.display='inline-block';$('finishRoute').style.display='inline-block';$('placementDone').style.display='none';
  drawAnnotations();toast('Tap the drawing to add route points');
 }
 function resetRouteControls(){
- document.body.classList.remove('route-mode');routeDraft=[];lastRouteTap=null;routePointerStart=null;
+ document.body.classList.remove('route-mode');routeDraft=[];lastRouteTap=null;routeBranchPending=false;routePointerStart=null;
  $('placementComment').style.display='';$('undoRoutePoint').style.display='none';$('branchRoute').style.display='none';$('cancelRoute').style.display='none';$('finishRoute').style.display='none';$('placementDone').style.display='';
  drawAnnotations();
 }
@@ -460,6 +460,7 @@ function openRiseFallPicker(pt){
 }
 function handleRouteTap(pt){
  if(mode!=='route')return;
+ if(routeBranchPending){attachRouteBranch(pt);return}
  const now=Date.now(),last=lastRouteTap;
  if(last&&now-last.time<600&&Math.hypot((pt.x-last.pt.x)*$('overlay').width,(pt.y-last.pt.y)*$('overlay').height)<44*scale){
   // The first tap was provisionally added as a route point; remove it so the double-tap
@@ -484,13 +485,35 @@ function undoRoutePoint(){
 }
 function startRouteBranch(){
  if(mode!=='route')return;
- if(routeDraft.length<2){toast('Add at least two points to the current line before starting a branch');return}
- routeDraft=[];routePaths.push(routeDraft);
- $('placementCurrent').textContent=`Branch ${routePaths.length} — tap the drawing to start the branch`;
- drawAnnotations();toast('Branch started — tap to add its points');
+ if(!routePaths.some(path=>path.length>=2)){toast('Add at least two points to the route before starting a branch');return}
+ routeDraft=[];
+ routeBranchPending=true;
+ lastRouteTap=null;
+ $('placementCurrent').textContent='Branch — tap an existing route line to connect it';
+ drawAnnotations();toast('Tap an existing route line to connect the branch');
+}
+function attachRouteBranch(pt){
+ const c=$('overlay'),px=toDisplayPoint(pt.x,pt.y),sx=px.x*c.width,sy=px.y*c.height;
+ let nearest=null,best=Infinity;
+ routePaths.forEach(path=>{
+  for(let i=1;i<path.length;i++){
+   const a=toDisplayPoint(path[i-1].x,path[i-1].y),b=toDisplayPoint(path[i].x,path[i].y);
+   const ax=a.x*c.width,ay=a.y*c.height,bx=b.x*c.width,by=b.y*c.height;
+   const dx=bx-ax,dy=by-ay,len2=dx*dx+dy*dy;
+   const t=len2?Math.max(0,Math.min(1,((sx-ax)*dx+(sy-ay)*dy)/len2)):0;
+   const qx=ax+t*dx,qy=ay+t*dy,d=Math.hypot(sx-qx,sy-qy);
+   if(d<best){best=d;nearest={x:qx/c.width,y:qy/c.height}}
+  }
+ });
+ if(!nearest||best>Math.max(30,24*scale)){toast('Tap directly on an existing route line to connect the branch');return}
+ const anchor=toOriginalPoint(nearest.x,nearest.y);
+ routeDraft=[{x:Math.max(0,Math.min(1,anchor.x)),y:Math.max(0,Math.min(1,anchor.y))}];
+ routePaths.push(routeDraft);routeBranchPending=false;lastRouteTap=null;
+ $('placementCurrent').textContent=`Branch ${routePaths.length} connected — tap to add its next point`;
+ drawAnnotations();toast('Branch connected — add its next point');
 }
 function cancelRoutePlacement(){
- routePaths=[];routeDraft=[];mode=null;syncOverlayInput();resetRouteControls();document.body.classList.remove('placement-mode');toast('Route cancelled');
+ routePaths=[];routeDraft=[];routeBranchPending=false;mode=null;syncOverlayInput();resetRouteControls();document.body.classList.remove('placement-mode');toast('Route cancelled');
 }
 function finishRoutePlacement(){
  if(routePaths.length===0||routePaths.some(path=>path.length<2)){toast('Each route line and branch needs at least two points');return}
@@ -739,12 +762,16 @@ async function exportPdf(){
    if(firstPoint&&a.name)p.drawText(String(a.name).slice(0,55),{x:firstPoint.x+6,y:firstPoint.y+6,size:9,font:bold,color:rgb(...col)});
   }
   else if(a.type==='riseFall'){
+   // Counter-rotate the marker artwork so its arrow and R/F label stay upright
+   // on a PDF page whose /Rotate value has been changed for the drawing.
+   p.pushOperators(PDFLib.pushGraphicsState(),PDFLib.translate(x,y),PDFLib.rotateDegrees((activeDrawing.rotation||0)),PDFLib.translate(-x,-y));
    const rise=a.direction==='rise',col=rise?[.08,.5,.22]:[.7,.12,.12],tipY=y+(rise?10:-10),baseY=y+(rise?-7:7);
    p.drawCircle({x,y,size:9,borderColor:rgb(...col),borderWidth:1.4,color:rgb(1,1,1)});
    p.drawLine({start:{x,y:baseY},end:{x,y:tipY},thickness:1.8,color:rgb(...col)});
    p.drawLine({start:{x,y:tipY},end:{x:x-4,y:tipY+(rise?-4:4)},thickness:1.8,color:rgb(...col)});
    p.drawLine({start:{x,y:tipY},end:{x:x+4,y:tipY+(rise?-4:4)},thickness:1.8,color:rgb(...col)});
    p.drawText(rise?'R':'F',{x:x-2.3,y:y-16,size:6.5,font:bold,color:rgb(...col)});
+   p.pushOperators(PDFLib.popGraphicsState());
   }
   else if(a.type==='symbol'){
    const sz=(a.size||16)>30?16:(a.size||16),col=hexRgb(a.colour),stroke=Math.max(.8,sz*.065),angle=-(a.rotation||0)+(activeDrawing.rotation||0);
