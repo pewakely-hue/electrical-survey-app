@@ -522,10 +522,27 @@ function handleRouteTap(pt){
  addRoutePoint(pt);
  lastRouteTap={time:now,pt:{x:pt.x,y:pt.y},path:routeDraft,lengthAfterTap:routeDraft.length};
 }
+function snapRoutePoint(pt){
+ // Snap the new segment to the nearest 15-degree increment, measured in
+ // displayed PDF pixels so portrait/landscape drawings and page rotation behave correctly.
+ if(!routeDraft.length)return {x:Math.max(0,Math.min(1,pt.x)),y:Math.max(0,Math.min(1,pt.y))};
+ const canvas=$('overlay'),prev=toDisplayPoint(routeDraft[routeDraft.length-1].x,routeDraft[routeDraft.length-1].y);
+ const raw=toDisplayPoint(pt.x,pt.y);
+ const dx=(raw.x-prev.x)*canvas.width,dy=(raw.y-prev.y)*canvas.height;
+ const distance=Math.hypot(dx,dy);
+ if(distance<2)return {x:routeDraft[routeDraft.length-1].x,y:routeDraft[routeDraft.length-1].y};
+ const increment=Math.PI/12; // 15 degrees
+ const angle=Math.atan2(dy,dx),snapped=Math.round(angle/increment)*increment;
+ const display={x:prev.x+Math.cos(snapped)*distance/canvas.width,
+                y:prev.y+Math.sin(snapped)*distance/canvas.height};
+ const original=toOriginalPoint(display.x,display.y);
+ return {x:Math.max(0,Math.min(1,original.x)),y:Math.max(0,Math.min(1,original.y))};
+}
 function addRoutePoint(pt){
  if(mode!=='route')return;
- routeDraft.push({x:Math.max(0,Math.min(1,pt.x)),y:Math.max(0,Math.min(1,pt.y))});
- $('placementCurrent').textContent=`Service route — ${routeDraft.length} point${routeDraft.length===1?'':'s'} added`;
+ const snapped=snapRoutePoint(pt);
+ routeDraft.push(snapped);
+ $('placementCurrent').textContent=`Service route — ${routeDraft.length} point${routeDraft.length===1?'':'s'} added · 15° snap`;
  drawAnnotations();
 }
 function undoRoutePoint(){
