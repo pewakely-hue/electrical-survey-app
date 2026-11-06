@@ -610,7 +610,7 @@ function toggleAnnotationSelection(){if(!activeDrawing){toast('Select a drawing 
 $('selectAnnotations').onclick=toggleAnnotationSelection;
 $('placeSymbol').onclick=startSymbolPlacement;$('bottomSymbol').onclick=startSymbolPlacement;$('placeComment').onclick=startCommentPlacement;$('bottomComment').onclick=startCommentPlacement;$('placePhotoPin').onclick=startPhotoPin;$('placeRoute').onclick=startRoutePlacement;
 // In symbol placement mode, distinguish taps (place) from drag/pinch (navigate).
-const activeTouches=new Map();let gesture=null,pinchGesture=null;
+const activeTouches=new Map();let gesture=null,pinchGesture=null,commitSymbolPointer=null,lastSelectInputAt=0;
 let lastSymbolPreviewAt=0;
 function placeSymbolAt(x,y){
  if(!pendingSymbol){toast('Select a symbol below');return}
@@ -694,7 +694,26 @@ $('pageStage').addEventListener('pointerup',e=>{
  lastRoutePointerUpAt=routeLastInputAt;
  activeTouches.clear();gesture=null;pinchGesture=null;
 },true);
-$('pageStage').addEventListener('pointercancel',()=>{routePointerStart=null},true);
+$('pageStage').addEventListener('pointercancel',()=>{routePointerStart=null;symbolPointerStart=null},true);
+// iPhone symbol-placement fallback: handle a short tap at pageStage capture phase.
+// This avoids relying solely on the overlay's pointerup handler, which can be
+// sensitive to tiny finger movements or Safari pointer-capture behaviour.
+let symbolPointerStart=null;
+$('pageStage').addEventListener('pointerdown',e=>{
+ if(mode==='symbol')symbolPointerStart={id:e.pointerId,x:e.clientX,y:e.clientY};
+},true);
+$('pageStage').addEventListener('pointerup',e=>{
+ if(mode!=='symbol'||!symbolPointerStart||symbolPointerStart.id!==e.pointerId)return;
+ const start=symbolPointerStart;symbolPointerStart=null;
+ if(Math.hypot(e.clientX-start.x,e.clientY-start.y)>18)return;
+ const pt=displayPointFromClient(e.clientX,e.clientY);
+ placeSymbolAt(pt.x,pt.y);
+},true);
+$('pageStage').addEventListener('click',e=>{
+ if(mode!=='symbol'||!pendingSymbol)return;
+ const pt=displayPointFromClient(e.clientX,e.clientY);
+ placeSymbolAt(pt.x,pt.y);
+},true);
 $('pageStage').addEventListener('click',e=>{
  if(mode!=='route')return;
  // A pointerup-generated click follows immediately; ignore it to avoid doubling.
