@@ -180,6 +180,10 @@ const $=id=>document.getElementById(id);
 const SERVICE_COLOURS={General:'#2563eb',Lighting:'#16a34a','Small Power':'#d97706','Fire Alarm':'#dc2626','Data / ICT':'#7c3aed','Security / CCTV':'#0891b2',Mechanical:'#be185d','Audio Visual':'#9333ea','Call Systems':'#0d9488',Other:'#475569'};
 let db={projects:[]},activeProject=null,activeDrawing=null,pdfDoc=null,pageNo=1,scale=1.35,mode=null,pendingPoint=null,undoStack=[],redoStack=[];
 const DBKEY='electrical-survey-v1';
+// Drawing overlay state. These must exist before service filters or annotations render.
+const hiddenServices=new Set();
+let selectedAnnotationId=null,moveAnnotationId=null,moveStartPoint=null;
+
 const PHOTO_DB='electrical-survey-photo-store-v1';
 function photoStore(){return new Promise((resolve,reject)=>{const req=indexedDB.open(PHOTO_DB,1);req.onupgradeneeded=()=>{const d=req.result;if(!d.objectStoreNames.contains('images'))d.createObjectStore('images',{keyPath:'id'})};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 async function putPhotoBlob(id,blob){const d=await photoStore();return new Promise((resolve,reject)=>{const tx=d.transaction('images','readwrite');tx.objectStore('images').put({id,blob});tx.oncomplete=()=>{d.close();resolve()};tx.onerror=()=>{d.close();reject(tx.error)}})}
