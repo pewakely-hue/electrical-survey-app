@@ -434,14 +434,14 @@ function startSymbolPlacement(){
 }
 function startRoutePlacement(){
  if(!activeDrawing){toast('Import a PDF drawing first');return}
- pendingSymbol=null;pendingSymbolPlacement=null;routePaths=[[]];routeDraft=routePaths[0];routeDraft.colour='#2563eb';lastRouteTap=null;
+ pendingSymbol=null;pendingSymbolPlacement=null;routePaths=[[]];routeDraft=routePaths[0];routeDraft.colour='#2563eb';lastRouteTap=null;routePointerStart=null;routeLastInputAt=0;routeLastInputPoint=null;
  mode='route';syncOverlayInput();enterPlacementWindow();document.body.classList.add('route-mode');
  $('placementCurrent').textContent='Service route — tap the drawing to add the start point';
  $('placementComment').style.display='none';$('undoRoutePoint').style.display='inline-block';$('branchRoute').style.display='inline-block';$('cancelRoute').style.display='inline-block';$('finishRoute').style.display='inline-block';$('placementDone').style.display='none';
  drawAnnotations();toast('Tap the drawing to add route points');
 }
 function resetRouteControls(){
- document.body.classList.remove('route-mode');routeDraft=[];lastRouteTap=null;
+ document.body.classList.remove('route-mode');routeDraft=[];lastRouteTap=null;routePointerStart=null;
  $('placementComment').style.display='';$('undoRoutePoint').style.display='none';$('branchRoute').style.display='none';$('cancelRoute').style.display='none';$('finishRoute').style.display='none';$('placementDone').style.display='';
  drawAnnotations();
 }
@@ -565,27 +565,41 @@ $('overlay').addEventListener('pointermove',e=>{if(!activeTouches.has(e.pointerI
  if(rotateDragPointer===e.pointerId&&pendingSymbolPlacement){const raw=displayPointFromClient(e.clientX,e.clientY),pt=toDisplayPoint(raw.x,raw.y),c=$('overlay'),dp=toDisplayPoint(pendingSymbolPlacement.x,pendingSymbolPlacement.y);pendingSymbolPlacement.rotation=Math.atan2(pt.y*c.height-dp.y*c.height,pt.x*c.width-dp.x*c.width)*180/Math.PI;drawAnnotations();return}
  if(activeTouches.size===2&&pinchGesture){const pts=[...activeTouches.values()],dist=pinchDistance(pts[0],pts[1]),mid=pinchMidpoint(pts[0],pts[1]),ratio=dist/Math.max(1,pinchGesture.distance),next=Math.max(.65,Math.min(3.2,pinchGesture.startScale*Math.pow(ratio,.38)));pinchGesture.lastMid=mid;if(Math.abs(next-scale)>.0005){scale=next;pinchGesture.changed=true;const st=$('pageStage');st.style.transformOrigin=`${pinchGesture.anchorX*st.offsetWidth}px ${pinchGesture.anchorY*st.offsetHeight}px`;st.style.transform=`scale(${next/pinchGesture.startScale})`}}else if(activeTouches.size===1&&gesture){const dx=e.clientX-gesture.lastX,dy=e.clientY-gesture.lastY;if(Math.hypot(e.clientX-gesture.startX,e.clientY-gesture.startY)>7)gesture.moved=true;if(gesture.moved){$('drawingWrap').scrollLeft-=dx;$('drawingWrap').scrollTop-=dy}gesture.lastX=e.clientX;gesture.lastY=e.clientY}});
 async function commitPinchZoom(){if(!pinchGesture||!pinchGesture.changed)return;const pg=pinchGesture,w=$('drawingWrap'),st=$('pageStage'),wr=w.getBoundingClientRect(),mid=pg.lastMid||{x:wr.left+wr.width/2,y:wr.top+wr.height/2};st.style.transform='none';st.style.transformOrigin='0 0';await renderPage();const sr=st.getBoundingClientRect(),cx=sr.left-wr.left+w.scrollLeft,cy=sr.top-wr.top+w.scrollTop;w.scrollLeft=Math.max(0,cx+pg.anchorX*st.offsetWidth-(mid.x-wr.left));w.scrollTop=Math.max(0,cy+pg.anchorY*st.offsetHeight-(mid.y-wr.top));syncOverlayInput()}
-function finishPlacementPointer(e){if(!activeTouches.has(e.pointerId))return;const wasSingle=activeTouches.size===1,g=gesture;activeTouches.delete(e.pointerId);
+function finishPlacementPointer(e){if(mode==='route'){activeTouches.delete(e.pointerId);return}if(!activeTouches.has(e.pointerId))return;const wasSingle=activeTouches.size===1,g=gesture;activeTouches.delete(e.pointerId);
  if(rotateDragPointer===e.pointerId){rotateDragPointer=null;gesture=null;return}
  if(commitSymbolPointer===e.pointerId){commitSymbolPointer=null;gesture=null;commitSymbolPlacement();return}
  if(wasSingle&&g&&!g.moved){const pt=displayPointFromClient(e.clientX,e.clientY);if(mode==='route'){handleRouteTap(pt);lastRoutePointerUpAt=Date.now()}else if(mode==='symbol')placeSymbolAt(pt.x,pt.y);else if(mode==='symbolPreview'&&pendingSymbolPlacement){pendingSymbolPlacement.x=pt.x;pendingSymbolPlacement.y=pt.y;drawAnnotations()}else if(mode==='photo'){pendingPoint=pt;mode=null;syncOverlayInput();openPhotoCapturePrompt()}else if(mode==='comment'){pendingPoint=pt;placementReturnMode=document.body.classList.contains('placement-mode')?(pendingSymbol?'symbol':null):null;mode=null;syncOverlayInput();openCommentEditor()}}
  if(activeTouches.size===0){commitPinchZoom();gesture=null;pinchGesture=null}}
 $('overlay').addEventListener('pointerup',finishPlacementPointer);
+
+// Reliable route input: listen on the page stage in capture phase. This catches
+// taps even if iOS dispatches them to the PDF canvas rather than the overlay.
+let routePointerStart=null,routeLastInputAt=0,routeLastInputPoint=null;
+$('pageStage').addEventListener('pointerdown',e=>{
+ if(mode!=='route'||e.pointerType==='touch'&&e.isPrimary===false)return;
+ routePointerStart={id:e.pointerId,x:e.clientX,y:e.clientY};
+},true);
+$('pageStage').addEventListener('pointerup',e=>{
+ if(mode!=='route'||!routePointerStart||routePointerStart.id!==e.pointerId)return;
+ const start=routePointerStart;routePointerStart=null;
+ if(Math.hypot(e.clientX-start.x,e.clientY-start.y)>10)return;
+ const pt=displayPointFromClient(e.clientX,e.clientY);
+ handleRouteTap(pt);routeLastInputAt=Date.now();routeLastInputPoint={x:e.clientX,y:e.clientY};
+ lastRoutePointerUpAt=routeLastInputAt;
+ activeTouches.clear();gesture=null;pinchGesture=null;
+},true);
+$('pageStage').addEventListener('pointercancel',()=>{routePointerStart=null},true);
+$('pageStage').addEventListener('click',e=>{
+ if(mode!=='route')return;
+ // A pointerup-generated click follows immediately; ignore it to avoid doubling.
+ if(Date.now()-routeLastInputAt<700&&routeLastInputPoint&&Math.hypot(e.clientX-routeLastInputPoint.x,e.clientY-routeLastInputPoint.y)<30)return;
+ handleRouteTap(displayPointFromClient(e.clientX,e.clientY));
+ routeLastInputAt=Date.now();routeLastInputPoint={x:e.clientX,y:e.clientY};
+ activeTouches.clear();gesture=null;pinchGesture=null;
+},true);
+
 $('overlay').addEventListener('click',e=>{
  if(!activeDrawing)return;
- // iOS Safari fallback for service-route taps. Pointerup normally handles the
- // point; only use click when no pointerup was received for this tap.
- if(mode==='route'){
-  if(Date.now()-lastRoutePointerUpAt>650){
-   const pt=displayPointFromClient(e.clientX,e.clientY);
-   handleRouteTap(pt);
-   lastRoutePointerUpAt=Date.now();
-   // A missed pointerup can leave the gesture bookkeeping active. Clear it so
-   // the next tap is still treated as a single-finger tap, not a pinch.
-   activeTouches.clear();gesture=null;pinchGesture=null;
-  }
-  return;
- }
  // Safari fallback: if pointerup was missed, create the preview only.
  // Do not auto-commit: the user must still be able to rotate it.
  if(mode==='symbol'&&pendingSymbol){
