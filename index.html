@@ -63,6 +63,7 @@ body.placement-mode #mainTabs{display:none}
 #library .symbolMeta strong{display:block}
 #library .symbolMeta small{color:var(--muted)}
 #library .symbolAction{padding:8px 9px;font-size:12px}
+#serviceFilters{display:flex;gap:6px;overflow-x:auto;padding:7px 0;scrollbar-width:none}#serviceFilters button{flex:0 0 auto;padding:7px 10px;border-radius:18px;font-size:11px;background:#e8eef5;color:#334155;border:1px solid #cbd5e1}#serviceFilters button.active{background:#dbeafe;border-color:#60a5fa;color:#174ea6}#serviceFilters button.off{opacity:.42;text-decoration:line-through}
 #placementHUD{display:none}
 body.placement-mode{overflow:hidden}
 body.placement-mode header{display:none}
@@ -91,14 +92,16 @@ body.placement-mode #overlay{pointer-events:auto;touch-action:none}
 
 body.route-mode #placementGroups,body.route-mode #placementSymbols,body.route-mode .placementHint{display:none!important}
 @media(min-width:700px){main{padding-top:22px}#drawingWrap{max-height:72vh}}
+#dbCircuitTable th,#dbCircuitTable td{border:1px solid #d8e0e8;padding:4px}#dbCircuitTable th{background:#eaf0f6}#dbCircuitTable input{min-width:72px;padding:7px 5px;border:0;font-size:12px}#dbBoardList .dbBoardItem{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--line)}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 <header>
  <div><h1>Electrical Survey</h1><small id="headerSub">Site survey markup</small></div>
  <span id="headerProject" style="font-size:11px;color:#c4d0dc;text-align:right"></span>
 </header>
-<nav id="mainTabs"><button data-tab="home" class="active">Projects</button><button data-tab="viewer">Survey Viewer</button><button data-tab="photos">Photos</button><button data-tab="library">Symbol Library</button></nav>
+<nav id="mainTabs"><button data-tab="home" class="active">Projects</button><button data-tab="viewer">Survey Viewer</button><button data-tab="dbs">DB Schedules</button><button data-tab="photos">Photos</button><button data-tab="library">Symbol Library</button></nav>
 <main>
 <section id="home">
  <div class="card">
@@ -116,17 +119,29 @@ body.route-mode #placementGroups,body.route-mode #placementSymbols,body.route-mo
  <div class="card" style="padding:10px">
   <div class="row"><div><strong id="activeProjectName">Project</strong><div class="muted" id="activeDrawingName">No drawing selected</div></div><div class="row" style="gap:6px"><button id="copyDrawing">＋ Copy Drawing</button><button id="addDrawing">+ Add PDF</button></div></div>
   <div class="toolbar" id="drawingTabs"></div>
+  <div id="serviceFilters" aria-label="Filter annotations by service"></div>
   <div class="row" style="margin-top:7px"><button id="zoomOut">− Zoom</button><button id="zoomIn">＋ Zoom</button><button id="rotatePage">↻ Rotate 90°</button><button id="resetView">Zoom to Extents</button></div>
  </div>
  <div id="drawingWrap">
   <div id="pageStage"><div id="emptyDrawing">Import a PDF drawing to begin.<br><br>Use Add PDF to create another service drawing.</div><canvas id="pdfCanvas"></canvas><canvas id="overlay"></canvas></div>
  </div>
  <div class="card" style="padding:10px">
-  <div class="row"><button class="primary" id="placeSymbol">＋ Symbol</button><button class="primary" id="placeComment">＋ Comment</button><button class="primary" id="placePhotoPin">📷 Photo Pin</button><button class="primary" id="placeRoute">↗ Service Route</button></div><div class="row" style="margin-top:7px"><button id="finishPlacement">Done</button><button id="undoBtn">Undo</button><button id="redoBtn">Redo</button></div>
+  <div class="row"><button class="primary" id="placeSymbol">＋ Symbol</button><button class="primary" id="placeComment">＋ Comment</button><button class="primary" id="placePhotoPin">📷 Photo Pin</button><button class="primary" id="placeRoute">↗ Service Route</button><button id="selectAnnotations">Select / Edit</button></div><div class="row" style="margin-top:7px"><button id="finishPlacement">Done</button><button id="undoBtn">Undo</button><button id="redoBtn">Redo</button></div>
   <div class="row"><button id="addSymbol">Edit symbol library</button><button id="exportPdf" class="primary">Export PDF</button><button id="exportProject">Backup project</button></div>
  </div>
  <div class="muted" style="padding:0 4px">Tip: use one finger to scroll/pan the drawing and pinch with two fingers to zoom. Select a symbol to place it repeatedly; press Done to return to navigation.</div>
 </section>
+<section id="dbs" style="display:none">
+<div class="card"><div class="row"><div><h2>Distribution board schedules</h2><p class="muted" id="dbProjectLabel">Open a project to manage boards.</p></div><button class="primary" id="newDbBoard">＋ New board</button></div><div id="dbBoardList" class="muted">No boards recorded.</div></div>
+<div class="card" id="dbEditor" style="display:none"><h2 id="dbEditorTitle">Distribution board</h2>
+<div class="row"><div><label>Board reference</label><input id="dbRef" placeholder="DB-OL"></div><div><label>Board name</label><input id="dbName" placeholder="Distribution board"></div></div>
+<div class="row"><div><label>Location</label><input id="dbLocation" placeholder="Main switch room"></div><div><label>Client / installation</label><input id="dbClient"></div></div>
+<div class="row"><div><label>Board phases</label><select id="dbPhases"><option>Single phase</option><option selected>Three phase</option></select></div><div><label>Nominal voltage</label><input id="dbVoltage" value="400 V"></div></div>
+<div class="row"><div><label>Incomer / overcurrent device</label><input id="dbIncomer"></div><div><label>Incomer rating</label><input id="dbIncomerRating"></div></div>
+<div class="row"><div><label>RCD device</label><input id="dbRcd"></div><div><label>RCD poles</label><input id="dbRcdPoles"></div></div>
+<label>Photograph / scan of printed schedule</label><input id="dbImage" type="file" accept="image/*"><div class="row" style="margin-top:8px"><button id="dbRotateLeft">↶ Rotate</button><button id="dbRotateRight">↷ Rotate</button><button class="primary" id="dbRunOcr">Read schedule with OCR</button></div><p class="muted" id="dbOcrStatus">OCR runs in your browser. Internet access is required to load the OCR engine and language model.</p><div id="dbPreviewWrap" style="display:none"><img id="dbPreview" style="max-width:100%;max-height:240px;object-fit:contain"></div>
+<label>Circuit schedule — review all OCR results</label><div style="overflow-x:auto"><table id="dbCircuitTable" style="border-collapse:collapse;min-width:1100px;width:100%;font-size:12px"><thead><tr id="dbCircuitHead"></tr></thead><tbody id="dbCircuitBody"></tbody></table></div>
+<div class="row" style="margin-top:10px"><button id="dbAddRow">＋ Add circuit</button><button id="dbAddTen">＋ 10 rows</button><button class="primary" id="dbSave">Save board</button></div><div class="row" style="margin-top:8px"><button id="dbExportXlsx" class="primary">Export Excel</button><button id="dbExportWord">Export Word</button></div><details id="dbRawWrap" style="margin-top:10px"><summary>Raw OCR text</summary><pre id="dbRaw" style="white-space:pre-wrap;font-size:11px"></pre></details></div></section>
 <section id="photos" style="display:none">
  <div class="card"><h2>Site photographs</h2><p class="muted" id="photosProjectLabel">Select a project to view its photographs.</p><div id="photoList"><div class="muted">No photographs saved yet.</div></div></div>
 </section>
@@ -178,7 +193,25 @@ function uid(){return Math.random().toString(36).slice(2,10)}
 function openModal(html){$('sheet').innerHTML=html;$('modal').classList.add('open')}
 function closeModal(){$('modal').classList.remove('open')}
 function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function showTab(tab){if((tab==='viewer'||tab==='photos')&&!activeProject){toast('Open a project first');tab='home'}document.querySelectorAll('#mainTabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$('home').style.display=tab==='home'?'block':'none';$('viewer').style.display=tab==='viewer'?'block':'none';$('photos').style.display=tab==='photos'?'block':'none';$('library').style.display=tab==='library'?'block':'none';$('bottomBar').style.display=tab==='viewer'?'block':'none';if(tab==='library'){renderLibrary();populateLibraryServices()}if(tab==='viewer'&&activeProject)$('activeProjectName').textContent=activeProject.name;if(tab==='photos')renderPhotos();window.scrollTo({top:0,behavior:'auto'})}
+function showTab(tab){if((tab==='viewer'||tab==='photos')&&!activeProject){toast('Open a project first');tab='home'}document.querySelectorAll('#mainTabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$('home').style.display=tab==='home'?'block':'none';$('viewer').style.display=tab==='viewer'?'block':'none';$('photos').style.display=tab==='photos'?'block':'none';$('library').style.display=tab==='library'?'block':'none';$('dbs').style.display=tab==='dbs'?'block':'none';if(tab==='dbs')renderDbBoards();$('bottomBar').style.display=tab==='viewer'?'block':'none';if(tab==='library'){renderLibrary();populateLibraryServices()}if(tab==='viewer'&&activeProject){$('activeProjectName').textContent=activeProject.name;renderServiceFilters();}if(tab==='photos')renderPhotos();window.scrollTo({top:0,behavior:'auto'})}
+
+
+const DB_COLUMNS=[['way','Way'],['phase','Phase'],['circuit','Circuit name'],['wiring','Wiring type'],['reference','Reference method'],['points','Points served'],['live','Live CSA mm²'],['cpc','CPC CSA mm²'],['disconnection','Max disconnection s'],['standard','BS(EN)'],['deviceType','Protective device'],['rating','Rating A'],['capacity','Short-circuit kA'],['rcd','RCD operating mA'],['zs','Maximum Zs Ω'],['remarks','Remarks']];
+let editingDbBoard=null,dbCircuitRows=[],dbImageFile=null,dbRotation=0,dbImageUrl=null;
+function blankDbRow(){return Object.fromEntries(DB_COLUMNS.map(c=>[c[0],'']))}
+function renderDbBoards(){if(!activeProject){$('dbProjectLabel').textContent='Open a project first.';$('dbBoardList').textContent='No project selected.';return}activeProject.dbBoards=activeProject.dbBoards||[];$('dbProjectLabel').textContent=activeProject.name+' · '+activeProject.dbBoards.length+' board(s)';$('dbBoardList').innerHTML='';activeProject.dbBoards.forEach(b=>{let d=document.createElement('div');d.className='dbBoardItem';d.innerHTML=`<div><b>${escapeHtml(b.ref||'Unreferenced')} — ${escapeHtml(b.name||'Distribution board')}</b><div class="muted">${escapeHtml(b.location||'')} · ${(b.circuits||[]).length} circuits</div></div><div><button data-open>Open</button> <button data-delete>Delete</button></div>`;d.querySelector('[data-open]').onclick=()=>openDbEditor(b);d.querySelector('[data-delete]').onclick=()=>{if(confirm('Delete this board?')){activeProject.dbBoards=activeProject.dbBoards.filter(x=>x.id!==b.id);saveDB();renderDbBoards()}};$('dbBoardList').append(d)})}
+function renderDbRows(){ $('dbCircuitHead').innerHTML=DB_COLUMNS.map(c=>`<th>${escapeHtml(c[1])}</th>`).join('')+'<th></th>';let body=$('dbCircuitBody');body.innerHTML='';dbCircuitRows.forEach((r,i)=>{let tr=document.createElement('tr');tr.innerHTML=DB_COLUMNS.map(c=>`<td><input data-k="${c[0]}" aria-label="${c[1]}" value="${escapeHtml(r[c[0]]||'')}"></td>`).join('')+'<td><button data-x>×</button></td>';tr.querySelectorAll('input').forEach(x=>x.onchange=()=>dbCircuitRows[i][x.dataset.k]=x.value);tr.querySelector('[data-x]').onclick=()=>{dbCircuitRows.splice(i,1);renderDbRows()};body.append(tr)})}
+function openDbEditor(b=null){if(!activeProject){toast('Open a project first');return}editingDbBoard=b?.id||null;$('dbEditor').style.display='block';$('dbEditorTitle').textContent=b?'Edit '+(b.ref||'board'):'New distribution board';[['dbRef','ref'],['dbName','name'],['dbLocation','location'],['dbClient','client'],['dbVoltage','voltage'],['dbIncomer','incomer'],['dbIncomerRating','incomerRating'],['dbRcd','rcd'],['dbRcdPoles','rcdPoles']].forEach(([id,k])=>$(id).value=b?.[k]||'');$('dbPhases').value=b?.phases||'Three phase';dbCircuitRows=(b?.circuits||[]).map(r=>({...blankDbRow(),...r}));if(!dbCircuitRows.length)dbCircuitRows=Array.from({length:8},blankDbRow);renderDbRows();dbImageFile=null;dbRotation=0;$('dbImage').value='';$('dbPreviewWrap').style.display='none';$('dbOcrStatus').textContent='Upload a photo, rotate it until horizontal, then run OCR. Check all extracted information.';$('dbEditor').scrollIntoView({behavior:'smooth'})}
+$('newDbBoard').onclick=()=>openDbEditor();$('dbAddRow').onclick=()=>{dbCircuitRows.push(blankDbRow());renderDbRows()};$('dbAddTen').onclick=()=>{for(let i=0;i<10;i++)dbCircuitRows.push(blankDbRow());renderDbRows()};
+$('dbImage').onchange=()=>{dbImageFile=$('dbImage').files?.[0];if(!dbImageFile)return;if(dbImageUrl)URL.revokeObjectURL(dbImageUrl);dbImageUrl=URL.createObjectURL(dbImageFile);dbRotation=0;$('dbPreview').src=dbImageUrl;$('dbPreview').style.transform='rotate(0deg)';$('dbPreviewWrap').style.display='block'};
+function rotateDb(d){dbRotation=(dbRotation+d+360)%360;$('dbPreview').style.transform=`rotate(${dbRotation}deg)`}$('dbRotateLeft').onclick=()=>rotateDb(-90);$('dbRotateRight').onclick=()=>rotateDb(90);
+async function dbCanvas(){const im=await new Promise((ok,no)=>{let x=new Image();x.onload=()=>ok(x);x.onerror=no;x.src=URL.createObjectURL(dbImageFile)});let sw=dbRotation%180!==0,w=sw?im.height:im.width,h=sw?im.width:im.height,c=document.createElement('canvas');c.width=w;c.height=h;let x=c.getContext('2d');x.translate(w/2,h/2);x.rotate(dbRotation*Math.PI/180);x.drawImage(im,-im.width/2,-im.height/2);return c}
+function parseDbOcr(t){let out=[];t.split(/\n/).map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean).forEach(line=>{let m=line.match(/^([1-9]\d?)\s+(L[123])\s+(.+)$/i);if(!m)return;let r=blankDbRow(),rest=m[3];r.way=m[1];r.phase=m[2].toUpperCase();r.circuit=rest.replace(/\s+(F|O|B|D\/E|SWA|MCB|MCCB)\b.*$/i,'').trim();r.remarks=/SPARE/i.test(rest)?'SPARE':'';let rate=rest.match(/\b(\d{1,2})\s*A\b/i);if(rate)r.rating=rate[1]+' A';r.deviceType=/HRC/i.test(rest)?'HRC fuse':(/MCB|MCCB/i.test(rest)?'MCB':'');out.push(r)});return out}
+$('dbRunOcr').onclick=async()=>{if(!dbImageFile){toast('Choose a photograph first');return}if(!window.Tesseract){toast('OCR engine unavailable; check internet connection');return}let btn=$('dbRunOcr');btn.disabled=true;try{$('dbOcrStatus').textContent='Preparing image…';let c=await dbCanvas();$('dbOcrStatus').textContent='Recognising text…';let result=await Tesseract.recognize(c,'eng',{logger:m=>{if(m.status==='recognizing text')$('dbOcrStatus').textContent='Recognising text… '+Math.round(m.progress*100)+'%'}});let text=result.data.text||'';$('dbRaw').textContent=text;let rows=parseDbOcr(text);if(rows.length){dbCircuitRows=rows;renderDbRows();$('dbOcrStatus').textContent='Found '+rows.length+' possible circuit rows. OCR is a first pass: verify every field against the original.'}else $('dbOcrStatus').textContent='Text was recognised but circuit rows were not reliably identified. Add rows manually; raw OCR text is available below.'}catch(e){console.error(e);$('dbOcrStatus').textContent='OCR failed. Try a clearer, straight-on photograph.'}finally{btn.disabled=false}};
+$('dbSave').onclick=()=>{let b={id:editingDbBoard||uid(),ref:$('dbRef').value.trim(),name:$('dbName').value.trim(),location:$('dbLocation').value.trim(),client:$('dbClient').value.trim(),phases:$('dbPhases').value,voltage:$('dbVoltage').value.trim(),incomer:$('dbIncomer').value.trim(),incomerRating:$('dbIncomerRating').value.trim(),rcd:$('dbRcd').value.trim(),rcdPoles:$('dbRcdPoles').value.trim(),circuits:dbCircuitRows.map(x=>({...x}))};activeProject.dbBoards=activeProject.dbBoards||[];let i=activeProject.dbBoards.findIndex(x=>x.id===b.id);if(i<0)activeProject.dbBoards.push(b);else activeProject.dbBoards[i]=b;saveDB();renderDbBoards();toast('Board saved')};
+function currentDb(){return activeProject?.dbBoards?.find(x=>x.id===editingDbBoard)||{ref:$('dbRef').value,name:$('dbName').value,location:$('dbLocation').value,client:$('dbClient').value,phases:$('dbPhases').value,voltage:$('dbVoltage').value,incomer:$('dbIncomer').value,incomerRating:$('dbIncomerRating').value,rcd:$('dbRcd').value,rcdPoles:$('dbRcdPoles').value,circuits:dbCircuitRows}}
+$('dbExportXlsx').onclick=()=>{let b=currentDb();if(!window.XLSX){toast('Excel export library unavailable');return}let wb=XLSX.utils.book_new(),meta=[['Board reference',b.ref],['Board name',b.name],['Location',b.location],['Client / installation',b.client],['Phases',b.phases],['Nominal voltage',b.voltage],['Incomer',b.incomer],['Incomer rating',b.incomerRating],['RCD device',b.rcd],['RCD poles',b.rcdPoles]];XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(meta),'Board details');let data=b.circuits.map(r=>Object.fromEntries(DB_COLUMNS.map(c=>[c[1],r[c[0]]||''])));XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(data),'Circuit schedule');XLSX.writeFile(wb,(b.ref||'DB-schedule')+'.xlsx')};
+$('dbExportWord').onclick=()=>{let b=currentDb(),e=escapeHtml,html=`<html><head><meta charset="utf-8"><style>body{font-family:Arial;font-size:9pt}table{border-collapse:collapse;width:100%}td,th{border:1px solid #777;padding:4px}th{background:#ddd}</style></head><body><h1>Distribution Board Schedule — ${e(b.ref||'')}</h1><p>${e(b.name||'')} | ${e(b.location||'')}</p><p>Client: ${e(b.client||'')} | ${e(b.phases||'')} | ${e(b.voltage||'')}</p><p>Incomer: ${e(b.incomer||'')} ${e(b.incomerRating||'')} | RCD: ${e(b.rcd||'')} | Poles: ${e(b.rcdPoles||'')}</p><table><tr>${DB_COLUMNS.map(c=>`<th>${e(c[1])}</th>`).join('')}</tr>${b.circuits.map(r=>'<tr>'+DB_COLUMNS.map(c=>`<td>${e(r[c[0]]||'')}</td>`).join('')+'</tr>').join('')}</table><p>Generated from survey data. Verify against the original board schedule.</p></body></html>`;let blob=new Blob(['\ufeff',html],{type:'application/msword'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=(b.ref||'DB-schedule')+'.doc';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 
 function photoNumber(ph){
  if(ph.photoNo)return String(ph.photoNo).padStart(3,'0');
@@ -242,7 +275,7 @@ async function capturePhoto(file){
   await putPhotoBlob(id,blob);
   ensurePhotoNumbers(activeProject);const nextPhotoNo=(Number(activeProject.photoSequence)||0)+1;activeProject.photoSequence=nextPhotoNo;const photo={id,photoNo:String(nextPhotoNo).padStart(3,'0'),photoType:file._surveyPhotoType||'standard',drawingId:activeDrawing.id,drawingName:activeDrawing.name,page:pageNo,x:pendingPoint.x,y:pendingPoint.y,takenAt,caption:file.name&&file.name!=='image.jpg'?file.name.replace(/\.[^.]+$/,''):'Site photograph'};
   activeProject.photos=activeProject.photos||[];activeProject.photos.unshift(photo);
-  pushUndo();activeDrawing.annotations.push({id:uid(),type:'photo',photoId:id,page:pageNo,x:pendingPoint.x,y:pendingPoint.y});
+  pushUndo();activeDrawing.annotations.push({id:uid(),type:'photo',photoId:id,page:pageNo,x:pendingPoint.x,y:pendingPoint.y,service:activeDrawing.service||'General'});
   pendingPoint=null;saveDB();mode=null;syncOverlayInput();drawAnnotations();toast('Photograph saved and pinned to drawing')
  }catch(e){console.error(e);toast('Could not save photograph')}
 }
@@ -279,7 +312,7 @@ function clearDrawing(){$('activeDrawingName').textContent='No drawing selected'
 function renderDrawingTabs(){
  $('drawingTabs').innerHTML='';activeProject.drawings.forEach(d=>{let b=document.createElement('button');b.textContent=d.name;b.className=d.id===activeDrawing?.id?'primary':'';b.onclick=()=>selectDrawing(d.id);$('drawingTabs').append(b)})
 }
-async function selectDrawing(id){activeDrawing=activeProject.drawings.find(d=>d.id===id);if(!activeDrawing)return;pageNo=1;undoStack=[];redoStack=[];renderDrawingTabs();$('activeDrawingName').textContent=activeDrawing.name;renderSymbolTray();await renderPage()}
+async function selectDrawing(id){activeDrawing=activeProject.drawings.find(d=>d.id===id);if(!activeDrawing)return;pageNo=1;undoStack=[];redoStack=[];renderDrawingTabs();$('activeDrawingName').textContent=activeDrawing.name;renderSymbolTray();renderServiceFilters();await renderPage()}
 async function renderPage(){
  if(!activeDrawing)return;
  try{
@@ -345,9 +378,22 @@ function drawRiseFallCanvas(ctx,a,x,y){
  ctx.font=`bold ${8*s}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=col;ctx.fillText(a.direction==='rise'?'R':'F',0,17*s);
  ctx.restore();
 }
+function annotationService(a){
+ if(a.service)return a.service;
+ if(a.type==='symbol')return a.service||'General';
+ return activeDrawing?.service||'General';
+}
+function renderServiceFilters(){
+ const host=$('serviceFilters');if(!host)return;host.innerHTML='';
+ const add=(label,key)=>{const b=document.createElement('button');b.textContent=label;b.className=key==='__all__'?(hiddenServices.size===0?'active':''):(hiddenServices.has(key)?'off':'active');b.onclick=()=>{if(key==='__all__')hiddenServices.clear();else{if(hiddenServices.has(key))hiddenServices.delete(key);else hiddenServices.add(key)}renderServiceFilters();drawAnnotations()};host.append(b)};
+ add('All','__all__');Object.keys(SERVICE_COLOURS).forEach(k=>add(k,k));
+}
+function isAnnotationVisible(a){return !hiddenServices.has(annotationService(a))}
+function annotationPoint(a){if(a.type==='route'){const path=(a.paths||[a.points||[]])[0]||[];return path[0]||null}return {x:a.x,y:a.y}}
 function drawAnnotations(){
  const c=$('overlay'),ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);
  annotations().forEach(a=>{
+  if(!isAnnotationVisible(a))return;
   if(a.type==='route'){drawRouteCanvas(ctx,a);return}
   const pt=toDisplayPoint(a.x,a.y),x=pt.x*c.width,y=pt.y*c.height;
   if(a.type==='riseFall')drawRiseFallCanvas(ctx,a,x,y);
@@ -355,6 +401,7 @@ function drawAnnotations(){
   else if(a.type==='photo'){const ph=(activeProject?.photos||[]).find(p=>p.id===a.photoId);drawPhotoPin(ctx,x,y,scale,ph?String(ph.photoNo||'').padStart(3,'0'):'')}
   else{ctx.font=`${a.fontSize||14}px Arial`;const lines=wrapText(ctx,a.text,210);const w=Math.max(...lines.map(l=>ctx.measureText(l).width))+14,h=lines.length*(a.fontSize||14)*1.3+12;ctx.fillStyle='#fffbe8';ctx.strokeStyle=a.colour||'#b45309';ctx.lineWidth=1.5;ctx.fillRect(x,y,w,h);ctx.strokeRect(x,y,w,h);ctx.fillStyle='#222';ctx.textAlign='left';ctx.textBaseline='top';lines.forEach((l,i)=>ctx.fillText(l,x+7,y+6+i*(a.fontSize||14)*1.3))}
  });
+ if(selectedAnnotationId){const sel=annotations().find(a=>a.id===selectedAnnotationId);if(sel){ctx.save();ctx.strokeStyle='#f59e0b';ctx.lineWidth=3*scale;ctx.setLineDash([5*scale,3*scale]);if(sel.type==='route'){(sel.paths||[sel.points||[]]).forEach(path=>{const pts=path.map(p=>{const q=toDisplayPoint(p.x,p.y);return{x:q.x*c.width,y:q.y*c.height}});if(pts.length>1){ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);pts.slice(1).forEach(q=>ctx.lineTo(q.x,q.y));ctx.stroke()}})}else{const q=toDisplayPoint(sel.x,sel.y);ctx.beginPath();ctx.arc(q.x*c.width,q.y*c.height,20*scale,0,Math.PI*2);ctx.stroke()}ctx.restore()}}
  if(routePaths.length)drawRouteCanvas(ctx,{paths:routePaths,colour:routeDraft.colour||'#2563eb'},true);
  if(pendingSymbolPlacement){
   const a=pendingSymbolPlacement,pt=toDisplayPoint(a.x,a.y),x=pt.x*c.width,y=pt.y*c.height;
@@ -450,7 +497,7 @@ function openRiseFallPicker(pt){
  openModal(`<h2>Level change</h2><p class="muted">Choose the direction of the service rise or fall at this drawing position.</p><div class="actions"><button id="riseFallCancel">Cancel</button><button id="markRise" style="background:#dcfce7;color:#166534">↑ Rise</button><button id="markFall" style="background:#fee2e2;color:#991b1b">↓ Fall</button></div>`);
  $('riseFallCancel').onclick=closeModal;
  const place=(direction)=>{
-  pushUndo();activeDrawing.annotations.push({id:uid(),type:'riseFall',page:pageNo,x,y,direction});
+  pushUndo();activeDrawing.annotations.push({id:uid(),type:'riseFall',page:pageNo,x,y,direction,service:activeDrawing.service||'General'});
   saveDB();closeModal();drawAnnotations();
   $('placementCurrent').textContent=`Service route — ${routePaths.reduce((n,path)=>n+path.length,0)} route point(s); ${direction==='rise'?'rise':'fall'} marker added`;
   toast(`${direction==='rise'?'Rise':'Fall'} indication placed`);
@@ -517,15 +564,50 @@ function cancelRoutePlacement(){
 }
 function finishRoutePlacement(){
  if(routePaths.length===0||routePaths.some(path=>path.length<2)){toast('Each route line and branch needs at least two points');return}
- openModal(`<h2>Save service route</h2><label>Service / route name</label><input id="routeName" placeholder="e.g. Lighting circuit containment"><label>Route colour</label><select id="routeColour"><option value="#2563eb">Blue</option><option value="#16a34a">Green</option><option value="#dc2626">Red</option><option value="#d97706">Amber</option><option value="#7c3aed">Purple</option><option value="#0891b2">Cyan</option><option value="#be185d">Magenta</option><option value="#475569">Grey</option></select><div class="actions"><button id="routeSaveCancel">Cancel</button><button id="routeSaveConfirm" class="primary">Save route</button></div>`);
+ openModal(`<h2>Save service route</h2><label>Service / route name</label><input id="routeName" placeholder="e.g. Lighting circuit containment"><label>Service</label><select id="routeService">${Object.keys(SERVICE_COLOURS).map(s=>`<option value="${s}" ${s===(activeDrawing.service||'General')?'selected':''}>${s}</option>`).join('')}</select><label>Route colour</label><select id="routeColour"><option value="#2563eb">Blue</option><option value="#16a34a">Green</option><option value="#dc2626">Red</option><option value="#d97706">Amber</option><option value="#7c3aed">Purple</option><option value="#0891b2">Cyan</option><option value="#be185d">Magenta</option><option value="#475569">Grey</option></select><div class="actions"><button id="routeSaveCancel">Cancel</button><button id="routeSaveConfirm" class="primary">Save route</button></div>`);
  $('routeSaveCancel').onclick=closeModal;
  $('routeSaveConfirm').onclick=()=>{
   const name=$('routeName').value.trim();if(!name){toast('Enter a route name');return}
-  pushUndo();activeDrawing.annotations.push({id:uid(),type:'route',page:pageNo,name,colour:$('routeColour').value,points:routePaths[0].map(p=>({...p})),paths:routePaths.map(path=>path.map(p=>({...p})))});
+  pushUndo();activeDrawing.annotations.push({id:uid(),type:'route',page:pageNo,name,service:$('routeService').value,colour:$('routeColour').value,points:routePaths[0].map(p=>({...p})),paths:routePaths.map(path=>path.map(p=>({...p})))});
   saveDB();closeModal();mode=null;syncOverlayInput();resetRouteControls();document.body.classList.remove('placement-mode');toast('Service route saved');
  };
 }
 $('undoRoutePoint').onclick=undoRoutePoint;$('branchRoute').onclick=startRouteBranch;$('cancelRoute').onclick=cancelRoutePlacement;$('finishRoute').onclick=finishRoutePlacement;
+function selectAnnotationAt(pt){
+ const c=$('overlay'),px=toDisplayPoint(pt.x,pt.y),sx=px.x*c.width,sy=px.y*c.height;let best=null,bestD=Infinity;
+ for(const a of annotations()){
+  if(!isAnnotationVisible(a))continue;let d=Infinity;
+  if(a.type==='route'){
+   (a.paths||[a.points||[]]).forEach(path=>{for(let i=0;i<path.length;i++){const q=toDisplayPoint(path[i].x,path[i].y);if(i===0)d=Math.min(d,Math.hypot(sx-q.x*c.width,sy-q.y*c.height));else{const prev=toDisplayPoint(path[i-1].x,path[i-1].y),ax=prev.x*c.width,ay=prev.y*c.height,bx=q.x*c.width,by=q.y*c.height,dx=bx-ax,dy=by-ay,l=dx*dx+dy*dy,t=l?Math.max(0,Math.min(1,((sx-ax)*dx+(sy-ay)*dy)/l)):0;d=Math.min(d,Math.hypot(sx-(ax+t*dx),sy-(ay+t*dy)))}}});
+  }else{const q=toDisplayPoint(a.x,a.y);d=Math.hypot(sx-q.x*c.width,sy-q.y*c.height);if(a.type==='comment')d=Math.max(0,d-12*scale)}
+  if(d<bestD){bestD=d;best=a}
+ }
+ if(!best||bestD>Math.max(28,22*scale)){toast('No annotation close to that position');return}
+ selectedAnnotationId=best.id;drawAnnotations();openAnnotationActions(best);
+}
+function openAnnotationActions(a){
+ const type=a.type==='riseFall'?'Rise/Fall':a.type==='route'?'Service route':a.type==='photo'?'Photo pin':a.type==='symbol'?'Symbol':'Comment';
+ openModal(`<h2>${type}</h2><p class="muted">${escapeHtml(a.name||a.label||a.text||a.direction||'Selected annotation')}</p><div class="actions"><button id="annCancel">Close</button><button id="annMove" class="primary">Move</button><button id="annEdit">Edit</button><button id="annDelete" style="background:#fee2e2;color:#991b1b">Delete</button></div>`);
+ $('annCancel').onclick=()=>{closeModal();selectedAnnotationId=null;drawAnnotations()};
+ $('annMove').onclick=()=>{closeModal();moveAnnotationId=a.id;moveStartPoint=annotationPoint(a);mode='moveAnnotation';syncOverlayInput();toast('Tap the new position for this annotation')};
+ $('annEdit').onclick=()=>openAnnotationEditor(a);
+ $('annDelete').onclick=()=>{pushUndo();activeDrawing.annotations=activeDrawing.annotations.filter(x=>x.id!==a.id);selectedAnnotationId=null;saveDB();closeModal();drawAnnotations();toast('Annotation deleted')};
+}
+function openAnnotationEditor(a){
+ const services=Object.keys(SERVICE_COLOURS).map(s=>`<option value="${s}" ${annotationService(a)===s?'selected':''}>${s}</option>`).join('');
+ let fields='';
+ if(a.type==='symbol')fields=`<label>Label</label><input id="annLabel" value="${escapeHtml(a.label||'')}"><label>Description</label><input id="annName" value="${escapeHtml(a.name||'')}"><label>Rotation (degrees)</label><input id="annRotation" type="number" value="${Number(a.rotation)||0}">`;
+ else if(a.type==='comment')fields=`<label>Comment</label><textarea id="annText" rows="4">${escapeHtml(a.text||'')}</textarea><label>Text size</label><input id="annFont" type="number" min="8" max="28" value="${a.fontSize||14}">`;
+ else if(a.type==='route')fields=`<label>Route name</label><input id="annName" value="${escapeHtml(a.name||'')}"><label>Route colour</label><select id="annColour">${['#2563eb','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#be185d','#475569'].map(c=>`<option value="${c}" ${a.colour===c?'selected':''}>${c}</option>`).join('')}</select>`;
+ else if(a.type==='riseFall')fields=`<label>Direction</label><select id="annDirection"><option value="rise" ${a.direction==='rise'?'selected':''}>Rise</option><option value="fall" ${a.direction==='fall'?'selected':''}>Fall</option></select>`;
+ else if(a.type==='photo'){const ph=(activeProject.photos||[]).find(x=>x.id===a.photoId);fields=`<label>Photo caption</label><input id="annCaption" value="${escapeHtml(ph?.caption||'Site photograph')}">`}
+ openModal(`<h2>Edit ${a.type==='riseFall'?'Rise/Fall':a.type}</h2>${fields}<label>Service</label><select id="annService">${services}</select><div class="actions"><button id="annEditCancel">Cancel</button><button id="annEditSave" class="primary">Save changes</button></div>`);
+ $('annEditCancel').onclick=()=>{closeModal();openAnnotationActions(a)};
+ $('annEditSave').onclick=()=>{pushUndo();a.service=$('annService').value;if(a.type==='symbol'){a.label=$('annLabel').value.trim()||a.label;a.name=$('annName').value.trim();a.rotation=Number($('annRotation').value)||0}if(a.type==='comment'){a.text=$('annText').value.trim()||a.text;a.fontSize=Math.max(8,Math.min(28,Number($('annFont').value)||14))}if(a.type==='route'){a.name=$('annName').value.trim()||a.name;a.colour=$('annColour').value}if(a.type==='riseFall')a.direction=$('annDirection').value;if(a.type==='photo'){const ph=(activeProject.photos||[]).find(x=>x.id===a.photoId);if(ph)ph.caption=$('annCaption').value.trim()}saveDB();closeModal();selectedAnnotationId=a.id;drawAnnotations();toast('Annotation updated')};
+}
+function moveSelectedAnnotation(pt){const a=activeDrawing.annotations.find(x=>x.id===moveAnnotationId);if(!a)return;const target={x:Math.max(0,Math.min(1,pt.x)),y:Math.max(0,Math.min(1,pt.y))};pushUndo();if(a.type==='route'){const anchor=annotationPoint(a);const dx=target.x-anchor.x,dy=target.y-anchor.y;(a.paths||[a.points||[]]).forEach(path=>path.forEach(q=>{q.x=Math.max(0,Math.min(1,q.x+dx));q.y=Math.max(0,Math.min(1,q.y+dy))}));if(a.points)a.points=(a.paths||[])[0].map(q=>({...q}))}else{a.x=target.x;a.y=target.y}saveDB();selectedAnnotationId=a.id;moveAnnotationId=null;moveStartPoint=null;mode='select';syncOverlayInput();drawAnnotations();toast('Annotation moved')}
+function toggleAnnotationSelection(){if(!activeDrawing){toast('Select a drawing first');return}if(mode==='select'){mode=null;selectedAnnotationId=null;$('selectAnnotations').classList.remove('primary');syncOverlayInput();drawAnnotations();toast('Selection mode off')}else{if(document.body.classList.contains('placement-mode'))exitPlacementWindow();mode='select';$('selectAnnotations').classList.add('primary');syncOverlayInput();toast('Tap a symbol, comment, route or marker to edit it')}}
+$('selectAnnotations').onclick=toggleAnnotationSelection;
 $('placeSymbol').onclick=startSymbolPlacement;$('bottomSymbol').onclick=startSymbolPlacement;$('placeComment').onclick=startCommentPlacement;$('bottomComment').onclick=startCommentPlacement;$('placePhotoPin').onclick=startPhotoPin;$('placeRoute').onclick=startRoutePlacement;
 // In symbol placement mode, distinguish taps (place) from drag/pinch (navigate).
 const activeTouches=new Map();let gesture=null,pinchGesture=null;
@@ -589,6 +671,7 @@ $('overlay').addEventListener('pointermove',e=>{if(!activeTouches.has(e.pointerI
  if(activeTouches.size===2&&pinchGesture){const pts=[...activeTouches.values()],dist=pinchDistance(pts[0],pts[1]),mid=pinchMidpoint(pts[0],pts[1]),ratio=dist/Math.max(1,pinchGesture.distance),next=Math.max(.65,Math.min(3.2,pinchGesture.startScale*Math.pow(ratio,.38)));pinchGesture.lastMid=mid;if(Math.abs(next-scale)>.0005){scale=next;pinchGesture.changed=true;const st=$('pageStage');st.style.transformOrigin=`${pinchGesture.anchorX*st.offsetWidth}px ${pinchGesture.anchorY*st.offsetHeight}px`;st.style.transform=`scale(${next/pinchGesture.startScale})`}}else if(activeTouches.size===1&&gesture){const dx=e.clientX-gesture.lastX,dy=e.clientY-gesture.lastY;if(Math.hypot(e.clientX-gesture.startX,e.clientY-gesture.startY)>7)gesture.moved=true;if(gesture.moved){$('drawingWrap').scrollLeft-=dx;$('drawingWrap').scrollTop-=dy}gesture.lastX=e.clientX;gesture.lastY=e.clientY}});
 async function commitPinchZoom(){if(!pinchGesture||!pinchGesture.changed)return;const pg=pinchGesture,w=$('drawingWrap'),st=$('pageStage'),wr=w.getBoundingClientRect(),mid=pg.lastMid||{x:wr.left+wr.width/2,y:wr.top+wr.height/2};st.style.transform='none';st.style.transformOrigin='0 0';await renderPage();const sr=st.getBoundingClientRect(),cx=sr.left-wr.left+w.scrollLeft,cy=sr.top-wr.top+w.scrollTop;w.scrollLeft=Math.max(0,cx+pg.anchorX*st.offsetWidth-(mid.x-wr.left));w.scrollTop=Math.max(0,cy+pg.anchorY*st.offsetHeight-(mid.y-wr.top));syncOverlayInput()}
 function finishPlacementPointer(e){if(mode==='route'){activeTouches.delete(e.pointerId);return}if(!activeTouches.has(e.pointerId))return;const wasSingle=activeTouches.size===1,g=gesture;activeTouches.delete(e.pointerId);
+ if(wasSingle&&g&&!g.moved&&(mode==='select'||mode==='moveAnnotation')){lastSelectInputAt=Date.now();const pt=displayPointFromClient(e.clientX,e.clientY);if(mode==='select')selectAnnotationAt(pt);else moveSelectedAnnotation(pt);gesture=null;return}
  if(rotateDragPointer===e.pointerId){rotateDragPointer=null;gesture=null;return}
  if(commitSymbolPointer===e.pointerId){commitSymbolPointer=null;gesture=null;commitSymbolPlacement();return}
  if(wasSingle&&g&&!g.moved){const pt=displayPointFromClient(e.clientX,e.clientY);if(mode==='route'){handleRouteTap(pt);lastRoutePointerUpAt=Date.now()}else if(mode==='symbol')placeSymbolAt(pt.x,pt.y);else if(mode==='symbolPreview'&&pendingSymbolPlacement){pendingSymbolPlacement.x=pt.x;pendingSymbolPlacement.y=pt.y;drawAnnotations()}else if(mode==='photo'){pendingPoint=pt;mode=null;syncOverlayInput();openPhotoCapturePrompt()}else if(mode==='comment'){pendingPoint=pt;placementReturnMode=document.body.classList.contains('placement-mode')?(pendingSymbol?'symbol':null):null;mode=null;syncOverlayInput();openCommentEditor()}}
@@ -623,6 +706,7 @@ $('pageStage').addEventListener('click',e=>{
 
 $('overlay').addEventListener('click',e=>{
  if(!activeDrawing)return;
+ if(mode==='select'||mode==='moveAnnotation'){if(Date.now()-lastSelectInputAt<700)return;const pt=displayPointFromClient(e.clientX,e.clientY);if(mode==='select')selectAnnotationAt(pt);else moveSelectedAnnotation(pt);return;}
  // Safari fallback: if pointerup was missed, create the preview only.
  // Do not auto-commit: the user must still be able to rotate it.
  if(mode==='symbol'&&pendingSymbol){
@@ -665,7 +749,7 @@ function openCommentEditor(){
   }
  };
  $('cancelComment').onclick=resumePlacement;
- $('saveComment').onclick=()=>{let t=$('commentText').value.trim();if(!t)return toast('Enter a comment');pushUndo();activeDrawing.annotations.push({id:uid(),type:'comment',page:pageNo,x:pendingPoint.x,y:pendingPoint.y,text:t,fontSize:+$('commentSize').value,colour:$('commentColour').value});saveDB();drawAnnotations();resumePlacement()}
+ $('saveComment').onclick=()=>{let t=$('commentText').value.trim();if(!t)return toast('Enter a comment');pushUndo();activeDrawing.annotations.push({id:uid(),type:'comment',page:pageNo,x:pendingPoint.x,y:pendingPoint.y,service:activeDrawing.service||'General',text:t,fontSize:+$('commentSize').value,colour:$('commentColour').value});saveDB();drawAnnotations();resumePlacement()}
 }
 function populateLibraryServices(){const sel=$('libService');if(sel)sel.innerHTML=Object.keys(SERVICE_COLOURS).map(k=>`<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('')}
 function resetLibraryForm(){$('libLabel').value='';$('libName').value='';$('libShape').value='square';$('libService').value='General';$('editingSymbolId').value='';$('saveLibrarySymbol').textContent='Add symbol';$('cancelLibraryEdit').classList.add('hidden')}
@@ -678,7 +762,7 @@ function renderLibrary(){
    const row=document.createElement('div');row.className='symbolRow';
    row.innerHTML=`<div style="width:48px;text-align:center;color:${sym.colour};font-weight:800">${escapeHtml(sym.label)}</div><div class="symbolMeta"><strong>${escapeHtml(sym.name)}</strong><small>${escapeHtml(sym.shape)} · ${escapeHtml(sym.service)}</small></div><button class="symbolAction edit">Edit</button><button class="symbolAction delete" style="background:#fff0f0;color:#b42318">Delete</button>`;
    row.querySelector('.edit').onclick=()=>{$('libLabel').value=sym.label;$('libName').value=sym.name;$('libShape').value=sym.shape;$('libService').value=sym.service;$('editingSymbolId').value=sym.id;$('saveLibrarySymbol').textContent='Save changes';$('cancelLibraryEdit').classList.remove('hidden');window.scrollTo({top:0,behavior:'smooth'})};
-   row.querySelector('.delete').onclick=()=>{openModal(`<h2>Delete symbol?</h2><p>Delete <strong>${escapeHtml(sym.label)} – ${escapeHtml(sym.name)}</strong> from the library?</p><div class="actions"><button onclick="closeModal()">Cancel</button><button id="confirmDeleteSymbol" style="background:#b42318;color:white">Delete</button></div>`);$('confirmDeleteSymbol').onclick=()=>{db.symbols=db.symbols.filter(x=>x.id!==sym.id);db.projects.forEach(p=>{p.symbols=db.symbols;p.photos=p.photos||[];ensurePhotoNumbers(p);p.drawings.forEach(d=>{d.annotations=d.annotations||[]})});saveDB();closeModal();renderLibrary();renderSymbolTray();renderPlacementSymbols();resetLibraryForm();toast('Symbol deleted')}};
+   row.querySelector('.delete').onclick=()=>{openModal(`<h2>Delete symbol?</h2><p>Delete <strong>${escapeHtml(sym.label)} – ${escapeHtml(sym.name)}</strong> from the library?</p><div class="actions"><button onclick="closeModal()">Cancel</button><button id="confirmDeleteSymbol" style="background:#b42318;color:white">Delete</button></div>`);$('confirmDeleteSymbol').onclick=()=>{db.symbols=db.symbols.filter(x=>x.id!==sym.id);db.projects.forEach(p=>{p.symbols=db.symbols;p.photos=p.photos||[];p.dbBoards=p.dbBoards||[];ensurePhotoNumbers(p);p.drawings.forEach(d=>{d.annotations=d.annotations||[]})});saveDB();closeModal();renderLibrary();renderSymbolTray();renderPlacementSymbols();resetLibraryForm();toast('Symbol deleted')}};
    section.append(row);
   });host.append(section);
  });
@@ -750,7 +834,7 @@ async function exportPdf(){
  if(activeDrawing.rotation){pages.forEach(p=>p.setRotation(PDFLib.degrees(activeDrawing.rotation)))}
  ensurePhotoNumbers(activeProject);
  const drawingPhotos=(activeProject?.photos||[]).filter(ph=>ph.drawingId===activeDrawing.id).sort((a,b)=>String(a.photoNo||'').localeCompare(String(b.photoNo||''),undefined,{numeric:true}));
- for(const a of activeDrawing.annotations){const p=pages[a.page-1];if(!p)continue;const {width,height}=p.getSize(),x=a.x*width,y=(1-a.y)*height;
+ for(const a of activeDrawing.annotations){if(!isAnnotationVisible(a))continue;const p=pages[a.page-1];if(!p)continue;const {width,height}=p.getSize(),x=a.x*width,y=(1-a.y)*height;
   if(a.type==='route'){
    const paths=a.paths||[a.points||[]],col=hexRgb(a.colour||'#2563eb');let firstPoint=null;
    paths.forEach(path=>{
@@ -833,7 +917,7 @@ async function exportPdf(){
 }
  }
  // Symbol key: only symbols actually placed on this drawing.
- const usedSymbols=[];for(const a of activeDrawing.annotations||[]){if(a.type!=='symbol')continue;const key=(a.label||'')+'|'+(a.name||'');if(!usedSymbols.some(x=>x.key===key)){const lib=(db.symbols||[]).find(s=>s.label===a.label&&(!a.service||s.service===a.service)&&(s.name===a.name||!a.name));usedSymbols.push({key,label:a.label||'',name:lib?.name||a.name||a.label||'Symbol',service:lib?.service||a.service||'General',shape:a.shape||lib?.shape||'symbol',colour:a.colour||lib?.colour||'#2563eb'})}}
+ const usedSymbols=[];for(const a of activeDrawing.annotations||[]){if(a.type!=='symbol'||!isAnnotationVisible(a))continue;const key=(a.label||'')+'|'+(a.name||'');if(!usedSymbols.some(x=>x.key===key)){const lib=(db.symbols||[]).find(s=>s.label===a.label&&(!a.service||s.service===a.service)&&(s.name===a.name||!a.name));usedSymbols.push({key,label:a.label||'',name:lib?.name||a.name||a.label||'Symbol',service:lib?.service||a.service||'General',shape:a.shape||lib?.shape||'symbol',colour:a.colour||lib?.colour||'#2563eb'})}}
  const pageSize=[595.28,841.89];
  if(usedSymbols.length){const kp=doc.addPage(pageSize);kp.drawText('SYMBOL KEY',{x:42,y:796,size:18,font:bold,color:rgb(.08,.14,.2)});kp.drawText(activeProject?.name||'Survey project',{x:42,y:777,size:9,font,color:rgb(.35,.4,.46)});kp.drawText(activeDrawing.name,{x:42,y:762,size:10,font:bold,color:rgb(.12,.2,.28)});let y=724;kp.drawText('SYMBOL',{x:48,y,size:8,font:bold,color:rgb(.35,.4,.46)});kp.drawText('DESCRIPTION',{x:150,y,size:8,font:bold,color:rgb(.35,.4,.46)});kp.drawText('SERVICE',{x:420,y,size:8,font:bold,color:rgb(.35,.4,.46)});y-=18;
   usedSymbols.forEach(sym=>{if(y<55){return}const col=hexRgb(sym.colour);kp.drawRectangle({x:48,y:y-8,width:24,height:18,color:rgb(1,1,1),borderColor:rgb(...col),borderWidth:1.4});kp.drawText(String(sym.label).slice(0,8),{x:51,y:y-2,size:7,font:bold,color:rgb(...col)});kp.drawText(String(sym.name).slice(0,48),{x:150,y:y-2,size:9,font,color:rgb(.12,.16,.2)});kp.drawText(String(sym.service).slice(0,22),{x:420,y:y-2,size:8,font,color:rgb(.3,.36,.42)});kp.drawLine({start:{x:42,y:y-13},end:{x:553,y:y-13},thickness:.4,color:rgb(.85,.88,.9)});y-=29;});
