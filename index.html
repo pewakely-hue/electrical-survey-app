@@ -97,7 +97,7 @@ body.route-mode #placementGroups,body.route-mode #placementSymbols,body.route-mo
 .bottomBar{padding:6px 8px calc(6px + var(--safe-bottom));box-shadow:0 -3px 14px #10203012}
 .bottomBar .row{gap:6px}
 .bottomBar button{padding:8px 7px;border-radius:10px;font-size:13px;line-height:1.15;min-height:38px}
-.bottomBar .primaryActions button{font-size:14px;font-weight:700;min-height:42px}
+.bottomBar .primaryActions button{font-size:11px;font-weight:650;min-height:30px;padding:5px 6px;border-radius:8px}
 .bottomBar .secondaryActions{margin-top:5px}
 .bottomBar .secondaryActions button{font-size:11px;font-weight:650;min-height:30px;padding:5px 6px;border-radius:8px;background:#edf2f7}
 body.placement-mode .placementTop{gap:5px;padding:6px 7px}
@@ -231,7 +231,7 @@ $('dbExportWord').onclick=()=>{let b=currentDb(),e=escapeHtml,html=`<html><head>
 .bottomBar{padding:6px 8px calc(6px + var(--safe-bottom));box-shadow:0 -3px 14px #10203012}
 .bottomBar .row{gap:6px}
 .bottomBar button{padding:8px 7px;border-radius:10px;font-size:13px;line-height:1.15;min-height:38px}
-.bottomBar .primaryActions button{font-size:14px;font-weight:700;min-height:42px}
+.bottomBar .primaryActions button{font-size:11px;font-weight:650;min-height:30px;padding:5px 6px;border-radius:8px}
 .bottomBar .secondaryActions{margin-top:5px}
 .bottomBar .secondaryActions button{font-size:11px;font-weight:650;min-height:30px;padding:5px 6px;border-radius:8px;background:#edf2f7}
 body.placement-mode .placementTop{gap:5px;padding:6px 7px}
@@ -665,7 +665,7 @@ function openAnnotationEditor(a){
 function moveSelectedAnnotation(pt){const a=activeDrawing.annotations.find(x=>x.id===moveAnnotationId);if(!a)return;const target={x:Math.max(0,Math.min(1,pt.x)),y:Math.max(0,Math.min(1,pt.y))};pushUndo();if(a.type==='route'){const anchor=annotationPoint(a);const dx=target.x-anchor.x,dy=target.y-anchor.y;(a.paths||[a.points||[]]).forEach(path=>path.forEach(q=>{q.x=Math.max(0,Math.min(1,q.x+dx));q.y=Math.max(0,Math.min(1,q.y+dy))}));if(a.points)a.points=(a.paths||[])[0].map(q=>({...q}))}else{a.x=target.x;a.y=target.y}saveDB();selectedAnnotationId=a.id;moveAnnotationId=null;moveStartPoint=null;mode='select';syncOverlayInput();drawAnnotations();toast('Annotation moved')}
 function toggleAnnotationSelection(){if(!activeDrawing){toast('Select a drawing first');return}if(mode==='select'){mode=null;selectedAnnotationId=null;$('selectAnnotations').classList.remove('primary');syncOverlayInput();drawAnnotations();toast('Selection mode off')}else{if(document.body.classList.contains('placement-mode'))exitPlacementWindow();mode='select';$('selectAnnotations').classList.add('primary');syncOverlayInput();toast('Tap a symbol, comment, route or marker to edit it')}}
 $('selectAnnotations').onclick=toggleAnnotationSelection;
-$('bottomSymbol').onclick=startSymbolPlacement;$('bottomComment').onclick=startCommentPlacement;
+$('bottomSymbol').onclick=startSymbolPlacement;$('bottomComment').onclick=startCommentPlacement;$('placePhotoPin').onclick=startPhotoPin;$('placeRoute').onclick=startRoutePlacement;
 // In symbol placement mode, distinguish taps (place) from drag/pinch (navigate).
 const activeTouches=new Map();let gesture=null,pinchGesture=null,commitSymbolPointer=null,lastSelectInputAt=0;
 let lastSymbolPreviewAt=0;
