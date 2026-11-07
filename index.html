@@ -93,6 +93,18 @@ body.placement-mode #overlay{pointer-events:auto;touch-action:none}
 body.route-mode #placementGroups,body.route-mode #placementSymbols,body.route-mode .placementHint{display:none!important}
 @media(min-width:700px){main{padding-top:22px}#drawingWrap{max-height:72vh}}
 #dbCircuitTable th,#dbCircuitTable td{border:1px solid #d8e0e8;padding:4px}#dbCircuitTable th{background:#eaf0f6}#dbCircuitTable input{min-width:72px;padding:7px 5px;border:0;font-size:12px}#dbBoardList .dbBoardItem{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--line)}
+
+.bottomBar{padding:6px 8px calc(6px + var(--safe-bottom));box-shadow:0 -3px 14px #10203012}
+.bottomBar .row{gap:6px}
+.bottomBar button{padding:8px 7px;border-radius:10px;font-size:13px;line-height:1.15;min-height:38px}
+.bottomBar .primaryActions button{font-size:14px;font-weight:700;min-height:42px}
+.bottomBar .secondaryActions{margin-top:5px}
+.bottomBar .secondaryActions button{font-size:11px;font-weight:650;min-height:30px;padding:5px 6px;border-radius:8px;background:#edf2f7}
+body.placement-mode .placementTop{gap:5px;padding:6px 7px}
+body.placement-mode .placementTop button{min-width:0;padding:7px 8px;font-size:11px;border-radius:8px}
+body.placement-mode #placementCurrent{font-size:11px}
+body.placement-mode .placementBottom{gap:5px;padding:7px 8px}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
@@ -126,7 +138,7 @@ body.route-mode #placementGroups,body.route-mode #placementSymbols,body.route-mo
   <div id="pageStage"><div id="emptyDrawing">Import a PDF drawing to begin.<br><br>Use Add PDF to create another service drawing.</div><canvas id="pdfCanvas"></canvas><canvas id="overlay"></canvas></div>
  </div>
  <div class="card" style="padding:10px">
-  <div class="row"><button class="primary" id="placeSymbol">＋ Symbol</button><button class="primary" id="placeComment">＋ Comment</button><button class="primary" id="placePhotoPin">📷 Photo Pin</button><button class="primary" id="placeRoute">↗ Service Route</button><button id="selectAnnotations">Select / Edit</button></div><div class="row" style="margin-top:7px"><button id="finishPlacement">Done</button><button id="undoBtn">Undo</button><button id="redoBtn">Redo</button></div>
+  <div class="row" style="margin-top:7px"><button id="finishPlacement">Done</button><button id="undoBtn">Undo</button><button id="redoBtn">Redo</button></div>
   <div class="row"><button id="addSymbol">Edit symbol library</button><button id="exportPdf" class="primary">Export PDF</button><button id="exportProject">Backup project</button></div>
  </div>
  <div class="muted" style="padding:0 4px">Tip: use one finger to scroll/pan the drawing and pinch with two fingers to zoom. Select a symbol to place it repeatedly; press Done to return to navigation.</div>
@@ -157,9 +169,9 @@ body.route-mode #placementGroups,body.route-mode #placementSymbols,body.route-mo
 </section>
 </main>
 
-<div class="bottomBar" id="bottomBar"><div class="row"><button id="bottomSymbol" class="primary">Symbol</button><button id="bottomComment" class="primary">Comment</button><button id="bottomSave">Save</button></div></div>
+<div class="bottomBar" id="bottomBar"><div class="row primaryActions"><button id="bottomSymbol" class="primary">Symbol</button><button id="bottomComment" class="primary">Comment</button><button id="bottomSave">Save</button></div><div class="row secondaryActions"><button id="placePhotoPin">Photo pin</button><button id="placeRoute">Service route</button><button id="selectAnnotations">Select / edit</button></div></div>
 <div id="placementHUD" aria-live="polite">
- <div class="placementTop"><button id="placementComment">＋ Comment</button><button id="undoRoutePoint" style="display:none">Undo Point</button><button id="branchRoute" style="display:none">＋ Branch</button><button id="alignRoute" style="display:none">Align to wall</button><button id="resetRouteAlignment" style="display:none">Page axes</button><button id="cancelRoute" style="display:none">Cancel Route</button><button id="finishRoute" class="primary" style="display:none">Finish Route</button><button id="cancelSymbolPlacement" style="display:none">Cancel</button><button id="placementDone" class="primary">Done</button><span id="placementTitle">Place symbols</span></div>
+ <div class="placementTop"><button id="placementComment">＋ Comment</button><button id="undoRoutePoint" style="display:none">Undo Point</button><button id="branchRoute" style="display:none">＋ Branch</button><button id="alignRoute" style="display:none">Align to wall</button><button id="cancelRoute" style="display:none">Cancel Route</button><button id="finishRoute" class="primary" style="display:none">Finish Route</button><button id="cancelSymbolPlacement" style="display:none">Cancel</button><button id="placementDone" class="primary">Done</button><span id="placementTitle">Place symbols</span></div>
  <div class="placementBottom">
   <div id="placementCurrent">Select a symbol</div>
   <div id="placementGroups" aria-label="Filter symbols by service"></div>
@@ -215,7 +227,19 @@ $('dbRunOcr').onclick=async()=>{if(!dbImageFile){toast('Choose a photograph firs
 $('dbSave').onclick=()=>{let b={id:editingDbBoard||uid(),ref:$('dbRef').value.trim(),name:$('dbName').value.trim(),location:$('dbLocation').value.trim(),client:$('dbClient').value.trim(),phases:$('dbPhases').value,voltage:$('dbVoltage').value.trim(),incomer:$('dbIncomer').value.trim(),incomerRating:$('dbIncomerRating').value.trim(),rcd:$('dbRcd').value.trim(),rcdPoles:$('dbRcdPoles').value.trim(),circuits:dbCircuitRows.map(x=>({...x}))};activeProject.dbBoards=activeProject.dbBoards||[];let i=activeProject.dbBoards.findIndex(x=>x.id===b.id);if(i<0)activeProject.dbBoards.push(b);else activeProject.dbBoards[i]=b;saveDB();renderDbBoards();toast('Board saved')};
 function currentDb(){return activeProject?.dbBoards?.find(x=>x.id===editingDbBoard)||{ref:$('dbRef').value,name:$('dbName').value,location:$('dbLocation').value,client:$('dbClient').value,phases:$('dbPhases').value,voltage:$('dbVoltage').value,incomer:$('dbIncomer').value,incomerRating:$('dbIncomerRating').value,rcd:$('dbRcd').value,rcdPoles:$('dbRcdPoles').value,circuits:dbCircuitRows}}
 $('dbExportXlsx').onclick=()=>{let b=currentDb();if(!window.XLSX){toast('Excel export library unavailable');return}let wb=XLSX.utils.book_new(),meta=[['Board reference',b.ref],['Board name',b.name],['Location',b.location],['Client / installation',b.client],['Phases',b.phases],['Nominal voltage',b.voltage],['Incomer',b.incomer],['Incomer rating',b.incomerRating],['RCD device',b.rcd],['RCD poles',b.rcdPoles]];XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(meta),'Board details');let data=b.circuits.map(r=>Object.fromEntries(DB_COLUMNS.map(c=>[c[1],r[c[0]]||''])));XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(data),'Circuit schedule');XLSX.writeFile(wb,(b.ref||'DB-schedule')+'.xlsx')};
-$('dbExportWord').onclick=()=>{let b=currentDb(),e=escapeHtml,html=`<html><head><meta charset="utf-8"><style>body{font-family:Arial;font-size:9pt}table{border-collapse:collapse;width:100%}td,th{border:1px solid #777;padding:4px}th{background:#ddd}</style></head><body><h1>Distribution Board Schedule — ${e(b.ref||'')}</h1><p>${e(b.name||'')} | ${e(b.location||'')}</p><p>Client: ${e(b.client||'')} | ${e(b.phases||'')} | ${e(b.voltage||'')}</p><p>Incomer: ${e(b.incomer||'')} ${e(b.incomerRating||'')} | RCD: ${e(b.rcd||'')} | Poles: ${e(b.rcdPoles||'')}</p><table><tr>${DB_COLUMNS.map(c=>`<th>${e(c[1])}</th>`).join('')}</tr>${b.circuits.map(r=>'<tr>'+DB_COLUMNS.map(c=>`<td>${e(r[c[0]]||'')}</td>`).join('')+'</tr>').join('')}</table><p>Generated from survey data. Verify against the original board schedule.</p></body></html>`;let blob=new Blob(['\ufeff',html],{type:'application/msword'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=(b.ref||'DB-schedule')+'.doc';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+$('dbExportWord').onclick=()=>{let b=currentDb(),e=escapeHtml,html=`<html><head><meta charset="utf-8"><style>body{font-family:Arial;font-size:9pt}table{border-collapse:collapse;width:100%}td,th{border:1px solid #777;padding:4px}th{background:#ddd}
+.bottomBar{padding:6px 8px calc(6px + var(--safe-bottom));box-shadow:0 -3px 14px #10203012}
+.bottomBar .row{gap:6px}
+.bottomBar button{padding:8px 7px;border-radius:10px;font-size:13px;line-height:1.15;min-height:38px}
+.bottomBar .primaryActions button{font-size:14px;font-weight:700;min-height:42px}
+.bottomBar .secondaryActions{margin-top:5px}
+.bottomBar .secondaryActions button{font-size:11px;font-weight:650;min-height:30px;padding:5px 6px;border-radius:8px;background:#edf2f7}
+body.placement-mode .placementTop{gap:5px;padding:6px 7px}
+body.placement-mode .placementTop button{min-width:0;padding:7px 8px;font-size:11px;border-radius:8px}
+body.placement-mode #placementCurrent{font-size:11px}
+body.placement-mode .placementBottom{gap:5px;padding:7px 8px}
+
+</style></head><body><h1>Distribution Board Schedule — ${e(b.ref||'')}</h1><p>${e(b.name||'')} | ${e(b.location||'')}</p><p>Client: ${e(b.client||'')} | ${e(b.phases||'')} | ${e(b.voltage||'')}</p><p>Incomer: ${e(b.incomer||'')} ${e(b.incomerRating||'')} | RCD: ${e(b.rcd||'')} | Poles: ${e(b.rcdPoles||'')}</p><table><tr>${DB_COLUMNS.map(c=>`<th>${e(c[1])}</th>`).join('')}</tr>${b.circuits.map(r=>'<tr>'+DB_COLUMNS.map(c=>`<td>${e(r[c[0]]||'')}</td>`).join('')+'</tr>').join('')}</table><p>Generated from survey data. Verify against the original board schedule.</p></body></html>`;let blob=new Blob(['\ufeff',html],{type:'application/msword'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=(b.ref||'DB-schedule')+'.doc';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 
 function photoNumber(ph){
  if(ph.photoNo)return String(ph.photoNo).padStart(3,'0');
@@ -490,12 +514,12 @@ function startRoutePlacement(){
  pendingSymbol=null;pendingSymbolPlacement=null;routePaths=[[]];routeDraft=routePaths[0];routeDraft.colour='#2563eb';lastRouteTap=null;routeBranchPending=false;routePointerStart=null;routeLastInputAt=0;routeLastInputPoint=null;routeReferenceAngle=0;routeAlignmentStart=null;routeAlignmentPicking=false;
  mode='route';syncOverlayInput();enterPlacementWindow();document.body.classList.add('route-mode');
  $('placementCurrent').textContent='Service route — tap the drawing to add the start point';
- $('placementComment').style.display='none';$('undoRoutePoint').style.display='inline-block';$('branchRoute').style.display='inline-block';$('alignRoute').style.display='inline-block';$('resetRouteAlignment').style.display='inline-block';$('cancelRoute').style.display='inline-block';$('finishRoute').style.display='inline-block';$('placementDone').style.display='none';
+ $('placementComment').style.display='none';$('undoRoutePoint').style.display='inline-block';$('branchRoute').style.display='inline-block';$('alignRoute').style.display='inline-block';$('cancelRoute').style.display='inline-block';$('finishRoute').style.display='inline-block';$('placementDone').style.display='none';
  drawAnnotations();toast('Tap the drawing to add route points');
 }
 function resetRouteControls(){
  document.body.classList.remove('route-mode');routeDraft=[];lastRouteTap=null;routeBranchPending=false;routePointerStart=null;routeAlignmentStart=null;routeAlignmentPicking=false;routeReferenceAngle=0;
- $('placementComment').style.display='';$('undoRoutePoint').style.display='none';$('branchRoute').style.display='none';$('alignRoute').style.display='none';$('resetRouteAlignment').style.display='none';$('cancelRoute').style.display='none';$('finishRoute').style.display='none';$('placementDone').style.display='';
+ $('placementComment').style.display='';$('undoRoutePoint').style.display='none';$('branchRoute').style.display='none';$('alignRoute').style.display='none';$('cancelRoute').style.display='none';$('finishRoute').style.display='none';$('placementDone').style.display='';
  drawAnnotations();
 }
 function openRiseFallPicker(pt){
@@ -549,8 +573,7 @@ function snapRoutePoint(pt){
  return {x:Math.max(0,Math.min(1,original.x)),y:Math.max(0,Math.min(1,original.y))};
 }
 function beginRouteAlignment(){if(mode!=='route')return;routeAlignmentPicking=true;routeAlignmentStart=null;lastRouteTap=null;$('placementCurrent').textContent='Alignment: tap two points along a straight wall';toast('Tap two points along a wall to set the building angle')}
-function resetRouteAlignment(){if(mode!=='route')return;routeReferenceAngle=0;routeAlignmentStart=null;routeAlignmentPicking=false;lastRouteTap=null;$('alignRoute').textContent='Align to wall';$('placementCurrent').textContent='Page alignment · 15° snap relative to page axes';drawAnnotations();toast('Route snapping reset to page axes')}
-$('alignRoute').onclick=beginRouteAlignment;$('resetRouteAlignment').onclick=resetRouteAlignment;
+$('alignRoute').onclick=beginRouteAlignment;
 function addRoutePoint(pt){
  if(mode!=='route')return;
  const snapped=snapRoutePoint(pt);
@@ -642,7 +665,7 @@ function openAnnotationEditor(a){
 function moveSelectedAnnotation(pt){const a=activeDrawing.annotations.find(x=>x.id===moveAnnotationId);if(!a)return;const target={x:Math.max(0,Math.min(1,pt.x)),y:Math.max(0,Math.min(1,pt.y))};pushUndo();if(a.type==='route'){const anchor=annotationPoint(a);const dx=target.x-anchor.x,dy=target.y-anchor.y;(a.paths||[a.points||[]]).forEach(path=>path.forEach(q=>{q.x=Math.max(0,Math.min(1,q.x+dx));q.y=Math.max(0,Math.min(1,q.y+dy))}));if(a.points)a.points=(a.paths||[])[0].map(q=>({...q}))}else{a.x=target.x;a.y=target.y}saveDB();selectedAnnotationId=a.id;moveAnnotationId=null;moveStartPoint=null;mode='select';syncOverlayInput();drawAnnotations();toast('Annotation moved')}
 function toggleAnnotationSelection(){if(!activeDrawing){toast('Select a drawing first');return}if(mode==='select'){mode=null;selectedAnnotationId=null;$('selectAnnotations').classList.remove('primary');syncOverlayInput();drawAnnotations();toast('Selection mode off')}else{if(document.body.classList.contains('placement-mode'))exitPlacementWindow();mode='select';$('selectAnnotations').classList.add('primary');syncOverlayInput();toast('Tap a symbol, comment, route or marker to edit it')}}
 $('selectAnnotations').onclick=toggleAnnotationSelection;
-$('placeSymbol').onclick=startSymbolPlacement;$('bottomSymbol').onclick=startSymbolPlacement;$('placeComment').onclick=startCommentPlacement;$('bottomComment').onclick=startCommentPlacement;$('placePhotoPin').onclick=startPhotoPin;$('placeRoute').onclick=startRoutePlacement;
+$('bottomSymbol').onclick=startSymbolPlacement;$('bottomComment').onclick=startCommentPlacement;
 // In symbol placement mode, distinguish taps (place) from drag/pinch (navigate).
 const activeTouches=new Map();let gesture=null,pinchGesture=null,commitSymbolPointer=null,lastSelectInputAt=0;
 let lastSymbolPreviewAt=0;
