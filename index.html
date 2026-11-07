@@ -159,7 +159,7 @@ body.route-mode #placementGroups,body.route-mode #placementSymbols,body.route-mo
 
 <div class="bottomBar" id="bottomBar"><div class="row"><button id="bottomSymbol" class="primary">Symbol</button><button id="bottomComment" class="primary">Comment</button><button id="bottomSave">Save</button></div></div>
 <div id="placementHUD" aria-live="polite">
- <div class="placementTop"><button id="placementComment">＋ Comment</button><button id="undoRoutePoint" style="display:none">Undo Point</button><button id="branchRoute" style="display:none">＋ Branch</button><button id="cancelRoute" style="display:none">Cancel Route</button><button id="finishRoute" class="primary" style="display:none">Finish Route</button><button id="cancelSymbolPlacement" style="display:none">Cancel</button><button id="placementDone" class="primary">Done</button><span id="placementTitle">Place symbols</span></div>
+ <div class="placementTop"><button id="placementComment">＋ Comment</button><button id="undoRoutePoint" style="display:none">Undo Point</button><button id="branchRoute" style="display:none">＋ Branch</button><button id="alignRoute" style="display:none">Align to wall</button><button id="resetRouteAlignment" style="display:none">Page axes</button><button id="cancelRoute" style="display:none">Cancel Route</button><button id="finishRoute" class="primary" style="display:none">Finish Route</button><button id="cancelSymbolPlacement" style="display:none">Cancel</button><button id="placementDone" class="primary">Done</button><span id="placementTitle">Place symbols</span></div>
  <div class="placementBottom">
   <div id="placementCurrent">Select a symbol</div>
   <div id="placementGroups" aria-label="Filter symbols by service"></div>
@@ -407,6 +407,7 @@ function drawAnnotations(){
  });
  if(selectedAnnotationId){const sel=annotations().find(a=>a.id===selectedAnnotationId);if(sel){ctx.save();ctx.strokeStyle='#f59e0b';ctx.lineWidth=3*scale;ctx.setLineDash([5*scale,3*scale]);if(sel.type==='route'){(sel.paths||[sel.points||[]]).forEach(path=>{const pts=path.map(p=>{const q=toDisplayPoint(p.x,p.y);return{x:q.x*c.width,y:q.y*c.height}});if(pts.length>1){ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);pts.slice(1).forEach(q=>ctx.lineTo(q.x,q.y));ctx.stroke()}})}else{const q=toDisplayPoint(sel.x,sel.y);ctx.beginPath();ctx.arc(q.x*c.width,q.y*c.height,20*scale,0,Math.PI*2);ctx.stroke()}ctx.restore()}}
  if(routePaths.length)drawRouteCanvas(ctx,{paths:routePaths,colour:routeDraft.colour||'#2563eb'},true);
+ if(routeAlignmentPicking&&routeAlignmentStart){const q=toDisplayPoint(routeAlignmentStart.x,routeAlignmentStart.y);ctx.save();ctx.fillStyle='#f59e0b';ctx.strokeStyle='#fff';ctx.lineWidth=2*scale;ctx.beginPath();ctx.arc(q.x*c.width,q.y*c.height,7*scale,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore()}
  if(pendingSymbolPlacement){
   const a=pendingSymbolPlacement,pt=toDisplayPoint(a.x,a.y),x=pt.x*c.width,y=pt.y*c.height;
   drawSymbolCanvas(ctx,a,x,y,true);
@@ -429,6 +430,7 @@ function wrapText(ctx,text,max){let words=text.split(/\s+/),lines=[],line='';wor
 function renderSymbolTray(){}
 let pendingSymbol=null,placementReturnMode=null,placementGroup='All',pendingSymbolPlacement=null,rotateDragPointer=null;
 let routePaths=[],routeDraft=[],lastRoutePointerUpAt=0,lastRouteTap=null,routeBranchPending=false;
+let routeReferenceAngle=0,routeAlignmentStart=null,routeAlignmentPicking=false;
 function renderPlacementSymbols(){
  const symbols=db.symbols||[];
  const groups=['All',...Array.from(new Set(symbols.map(sym=>sym.service||'General')))];
@@ -485,15 +487,15 @@ function startSymbolPlacement(){
 }
 function startRoutePlacement(){
  if(!activeDrawing){toast('Import a PDF drawing first');return}
- pendingSymbol=null;pendingSymbolPlacement=null;routePaths=[[]];routeDraft=routePaths[0];routeDraft.colour='#2563eb';lastRouteTap=null;routeBranchPending=false;routePointerStart=null;routeLastInputAt=0;routeLastInputPoint=null;
+ pendingSymbol=null;pendingSymbolPlacement=null;routePaths=[[]];routeDraft=routePaths[0];routeDraft.colour='#2563eb';lastRouteTap=null;routeBranchPending=false;routePointerStart=null;routeLastInputAt=0;routeLastInputPoint=null;routeReferenceAngle=0;routeAlignmentStart=null;routeAlignmentPicking=false;
  mode='route';syncOverlayInput();enterPlacementWindow();document.body.classList.add('route-mode');
  $('placementCurrent').textContent='Service route — tap the drawing to add the start point';
- $('placementComment').style.display='none';$('undoRoutePoint').style.display='inline-block';$('branchRoute').style.display='inline-block';$('cancelRoute').style.display='inline-block';$('finishRoute').style.display='inline-block';$('placementDone').style.display='none';
+ $('placementComment').style.display='none';$('undoRoutePoint').style.display='inline-block';$('branchRoute').style.display='inline-block';$('alignRoute').style.display='inline-block';$('resetRouteAlignment').style.display='inline-block';$('cancelRoute').style.display='inline-block';$('finishRoute').style.display='inline-block';$('placementDone').style.display='none';
  drawAnnotations();toast('Tap the drawing to add route points');
 }
 function resetRouteControls(){
- document.body.classList.remove('route-mode');routeDraft=[];lastRouteTap=null;routeBranchPending=false;routePointerStart=null;
- $('placementComment').style.display='';$('undoRoutePoint').style.display='none';$('branchRoute').style.display='none';$('cancelRoute').style.display='none';$('finishRoute').style.display='none';$('placementDone').style.display='';
+ document.body.classList.remove('route-mode');routeDraft=[];lastRouteTap=null;routeBranchPending=false;routePointerStart=null;routeAlignmentStart=null;routeAlignmentPicking=false;routeReferenceAngle=0;
+ $('placementComment').style.display='';$('undoRoutePoint').style.display='none';$('branchRoute').style.display='none';$('alignRoute').style.display='none';$('resetRouteAlignment').style.display='none';$('cancelRoute').style.display='none';$('finishRoute').style.display='none';$('placementDone').style.display='';
  drawAnnotations();
 }
 function openRiseFallPicker(pt){
@@ -511,6 +513,14 @@ function openRiseFallPicker(pt){
 }
 function handleRouteTap(pt){
  if(mode!=='route')return;
+ if(routeAlignmentPicking){
+  if(!routeAlignmentStart){routeAlignmentStart={...pt};$('placementCurrent').textContent='Alignment: tap a second point along the same wall';drawAnnotations();return}
+  const c=$('overlay'),a=toDisplayPoint(routeAlignmentStart.x,routeAlignmentStart.y),b=toDisplayPoint(pt.x,pt.y);
+  const dx=(b.x-a.x)*c.width,dy=(b.y-a.y)*c.height;
+  if(Math.hypot(dx,dy)<18){toast('Choose two points farther apart along the wall');return}
+  routeReferenceAngle=Math.atan2(dy,dx);routeAlignmentStart=null;routeAlignmentPicking=false;lastRouteTap=null;
+  $('alignRoute').textContent='Change alignment';$('placementCurrent').textContent='Building alignment set · 15° snap relative to wall';drawAnnotations();toast('Building alignment set');return;
+ }
  if(routeBranchPending){attachRouteBranch(pt);return}
  const now=Date.now(),last=lastRouteTap;
  if(last&&now-last.time<600&&Math.hypot((pt.x-last.pt.x)*$('overlay').width,(pt.y-last.pt.y)*$('overlay').height)<44*scale){
@@ -532,12 +542,15 @@ function snapRoutePoint(pt){
  const distance=Math.hypot(dx,dy);
  if(distance<2)return {x:routeDraft[routeDraft.length-1].x,y:routeDraft[routeDraft.length-1].y};
  const increment=Math.PI/12; // 15 degrees
- const angle=Math.atan2(dy,dx),snapped=Math.round(angle/increment)*increment;
+ const angle=Math.atan2(dy,dx),snapped=routeReferenceAngle+Math.round((angle-routeReferenceAngle)/increment)*increment;
  const display={x:prev.x+Math.cos(snapped)*distance/canvas.width,
                 y:prev.y+Math.sin(snapped)*distance/canvas.height};
  const original=toOriginalPoint(display.x,display.y);
  return {x:Math.max(0,Math.min(1,original.x)),y:Math.max(0,Math.min(1,original.y))};
 }
+function beginRouteAlignment(){if(mode!=='route')return;routeAlignmentPicking=true;routeAlignmentStart=null;lastRouteTap=null;$('placementCurrent').textContent='Alignment: tap two points along a straight wall';toast('Tap two points along a wall to set the building angle')}
+function resetRouteAlignment(){if(mode!=='route')return;routeReferenceAngle=0;routeAlignmentStart=null;routeAlignmentPicking=false;lastRouteTap=null;$('alignRoute').textContent='Align to wall';$('placementCurrent').textContent='Page alignment · 15° snap relative to page axes';drawAnnotations();toast('Route snapping reset to page axes')}
+$('alignRoute').onclick=beginRouteAlignment;$('resetRouteAlignment').onclick=resetRouteAlignment;
 function addRoutePoint(pt){
  if(mode!=='route')return;
  const snapped=snapRoutePoint(pt);
@@ -589,7 +602,7 @@ function finishRoutePlacement(){
  $('routeSaveCancel').onclick=closeModal;
  $('routeSaveConfirm').onclick=()=>{
   const name=$('routeName').value.trim();if(!name){toast('Enter a route name');return}
-  pushUndo();activeDrawing.annotations.push({id:uid(),type:'route',page:pageNo,name,service:$('routeService').value,colour:$('routeColour').value,points:routePaths[0].map(p=>({...p})),paths:routePaths.map(path=>path.map(p=>({...p})))});
+  pushUndo();activeDrawing.annotations.push({id:uid(),type:'route',page:pageNo,name,service:$('routeService').value,colour:$('routeColour').value,points:routePaths[0].map(p=>({...p})),paths:routePaths.map(path=>path.map(p=>({...p}))),referenceAngle:routeReferenceAngle});
   saveDB();closeModal();mode=null;syncOverlayInput();resetRouteControls();document.body.classList.remove('placement-mode');toast('Service route saved');
  };
 }
