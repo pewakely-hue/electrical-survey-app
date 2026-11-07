@@ -105,6 +105,23 @@ body.placement-mode .placementTop button{min-width:0;padding:7px 8px;font-size:1
 body.placement-mode #placementCurrent{font-size:11px}
 body.placement-mode .placementBottom{gap:5px;padding:7px 8px}
 
+
+/* Compact drawing navigation controls on mobile without changing their actions. */
+@media(max-width:699px){
+  #viewer .card:first-child > .row[style*="margin-top:7px"]{
+    display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;
+  }
+  #viewer .card:first-child > .row[style*="margin-top:7px"] button{
+    min-width:0;min-height:42px;padding:7px 4px;border-radius:9px;
+    font-size:12px;line-height:1.15;font-weight:650;white-space:normal;
+  }
+  #viewer .card:first-child > .row:first-child > .row{gap:6px;flex:0 0 auto}
+  #viewer .card:first-child > .row:first-child > .row button{
+    min-width:0;min-height:42px;padding:7px 8px;border-radius:9px;
+    font-size:12px;line-height:1.15;white-space:normal;
+  }
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
@@ -238,6 +255,23 @@ body.placement-mode .placementTop{gap:5px;padding:6px 7px}
 body.placement-mode .placementTop button{min-width:0;padding:7px 8px;font-size:11px;border-radius:8px}
 body.placement-mode #placementCurrent{font-size:11px}
 body.placement-mode .placementBottom{gap:5px;padding:7px 8px}
+
+
+/* Compact drawing navigation controls on mobile without changing their actions. */
+@media(max-width:699px){
+  #viewer .card:first-child > .row[style*="margin-top:7px"]{
+    display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;
+  }
+  #viewer .card:first-child > .row[style*="margin-top:7px"] button{
+    min-width:0;min-height:42px;padding:7px 4px;border-radius:9px;
+    font-size:12px;line-height:1.15;font-weight:650;white-space:normal;
+  }
+  #viewer .card:first-child > .row:first-child > .row{gap:6px;flex:0 0 auto}
+  #viewer .card:first-child > .row:first-child > .row button{
+    min-width:0;min-height:42px;padding:7px 8px;border-radius:9px;
+    font-size:12px;line-height:1.15;white-space:normal;
+  }
+}
 
 </style></head><body><h1>Distribution Board Schedule — ${e(b.ref||'')}</h1><p>${e(b.name||'')} | ${e(b.location||'')}</p><p>Client: ${e(b.client||'')} | ${e(b.phases||'')} | ${e(b.voltage||'')}</p><p>Incomer: ${e(b.incomer||'')} ${e(b.incomerRating||'')} | RCD: ${e(b.rcd||'')} | Poles: ${e(b.rcdPoles||'')}</p><table><tr>${DB_COLUMNS.map(c=>`<th>${e(c[1])}</th>`).join('')}</tr>${b.circuits.map(r=>'<tr>'+DB_COLUMNS.map(c=>`<td>${e(r[c[0]]||'')}</td>`).join('')+'</tr>').join('')}</table><p>Generated from survey data. Verify against the original board schedule.</p></body></html>`;let blob=new Blob(['\ufeff',html],{type:'application/msword'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=(b.ref||'DB-schedule')+'.doc';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 
