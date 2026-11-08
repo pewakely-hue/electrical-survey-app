@@ -183,6 +183,9 @@ body.placement-mode .placementBottom{gap:5px;padding:7px 8px}
 <section id="library" style="display:none">
  <div class="card">
   <h2>Symbol library</h2><p class="muted">Create and maintain reusable symbols grouped by electrical service. Colours are assigned automatically by service.</p>
+  <div class="notice" style="margin:10px 0">Import a symbols-only JSON backup. Existing projects, drawings, mark-ups, photographs and audio are not replaced.</div>
+  <div class="row"><button id="importSymbolLibrary">Import symbol library</button><button id="exportSymbolLibrary">Export symbol library</button></div>
+  <input id="symbolLibraryFile" type="file" accept="application/json,.json" class="hidden">
   <label>Initials / text</label><input id="libLabel" maxlength="8" placeholder="e.g. DB">
   <label>Description</label><input id="libName" placeholder="e.g. Distribution board">
   <div class="row"><div><label>Shape</label><select id="libShape"><option value="square">Square</option><option value="circle">Circle</option><option value="triangle">Triangle</option><option value="rectangle">Rectangle (2.5:1)</option></select></div><div><label>Service subgroup</label><select id="libService"></select></div></div>
@@ -912,6 +915,48 @@ function renderLibrary(){
  });
  if(!(db.symbols||[]).length)host.innerHTML='<div class="muted">No symbols yet. Add your first symbol above.</div>';
 }
+$('importSymbolLibrary').onclick=()=>$('symbolLibraryFile').click();
+$('exportSymbolLibrary').onclick=()=>{
+ const payload={symbols:db.symbols||[]};
+ const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download='electrical-survey-symbol-library.json';a.click();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);
+ toast('Symbol library exported');
+};
+$('symbolLibraryFile').onchange=e=>{
+ const file=e.target.files&&e.target.files[0];if(!file)return;
+ const reader=new FileReader();
+ reader.onload=()=>{
+  try{
+   const parsed=JSON.parse(reader.result);
+   const incoming=Array.isArray(parsed)?parsed:parsed.symbols;
+   if(!Array.isArray(incoming)||!incoming.length)throw new Error('No symbols found in this file');
+   const valid=incoming.filter(x=>x&&String(x.label||'').trim()&&String(x.name||'').trim());
+   if(!valid.length)throw new Error('No valid symbols found');
+   const existing=db.symbols||[];
+   const seen=new Set(existing.map(x=>[x.label,x.name,x.service||'General'].map(v=>String(v||'').trim().toLowerCase()).join('|')));
+   let added=0;
+   valid.forEach(item=>{
+    const label=String(item.label).trim(),name=String(item.name).trim();
+    const service=Object.prototype.hasOwnProperty.call(SERVICE_COLOURS,item.service)?item.service:'General';
+    const key=[label,name,service].map(v=>String(v||'').trim().toLowerCase()).join('|');
+    if(seen.has(key))return;
+    const id=item.id&&!existing.some(x=>x.id===item.id)?item.id:uid();
+    existing.push({id,label,name,shape:['square','circle','triangle','rectangle'].includes(item.shape)?item.shape:'square',service,colour:SERVICE_COLOURS[service]||SERVICE_COLOURS.Other});
+    seen.add(key);added++;
+   });
+   if(!added){toast('All symbols in this file are already in the library');return}
+   db.symbols=existing;
+   db.projects.forEach(p=>{p.symbols=db.symbols});
+   saveDB();renderLibrary();renderSymbolTray();renderPlacementSymbols();
+   toast(added+' symbols imported; existing project data preserved');
+  }catch(err){console.error(err);toast('Import failed: '+(err.message||'Invalid file'))}
+  finally{e.target.value=''}
+ };
+ reader.onerror=()=>{toast('Could not read the selected file');e.target.value=''};
+ reader.readAsText(file);
+};
 $('saveLibrarySymbol').onclick=()=>{
  const label=$('libLabel').value.trim(),name=$('libName').value.trim(),service=$('libService').value,shape=$('libShape').value,id=$('editingSymbolId').value;
  if(!label||!name)return toast('Enter symbol initials and description');
