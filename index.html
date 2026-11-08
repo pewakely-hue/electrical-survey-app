@@ -8,6 +8,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Electrical Survey v2.7</title>
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
 <style>
 :root{--navy:#142333;--blue:#2463eb;--bg:#eef2f6;--ink:#17212b;--muted:#657383;--line:#d8e0e8;--panel:#fff;--safe-bottom:env(safe-area-inset-bottom,0px)}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -480,7 +482,7 @@ function drawAnnotations(){
   if(a.type==='riseFall')drawRiseFallCanvas(ctx,a,x,y);
   else if(a.type==='symbol')drawSymbolCanvas(ctx,a,x,y);
   else if(a.type==='photo'){const ph=(activeProject?.photos||[]).find(p=>p.id===a.photoId);drawPhotoPin(ctx,x,y,scale,ph?String(ph.photoNo||'').padStart(3,'0'):'')}
-  else if(a.type==='comment'||a.type==='room'){const ref=a.type==='comment'?commentRef(a):roomRef(a),col=a.type==='comment'?'#b45309':'#0f766e';ctx.save();ctx.font=`bold ${Math.max(13,13*scale)}px Arial`;const w=ctx.measureText(ref).width+18,h=Math.max(25,25*scale);ctx.fillStyle='#fff';ctx.strokeStyle=col;ctx.lineWidth=1.7;ctx.beginPath();ctx.rect(x-w/2,y-h/2,w,h);ctx.fill();ctx.stroke();ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(ref,x,y);ctx.restore()}
+  else if(a.type==='comment'||a.type==='room'){const ref=a.type==='comment'?commentRef(a):roomRef(a),col=a.type==='comment'?'#b45309':'#0f766e';ctx.save();ctx.font=`bold ${Math.max(10,10*scale)}px Arial`;const w=ctx.measureText(ref).width+12,h=Math.max(19,19*scale);ctx.fillStyle='#fff';ctx.strokeStyle=col;ctx.lineWidth=1.2;ctx.beginPath();ctx.rect(x-w/2,y-h/2,w,h);ctx.fill();ctx.stroke();ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(ref,x,y);ctx.restore()}
  });
  if(selectedAnnotationId){const sel=annotations().find(a=>a.id===selectedAnnotationId);if(sel){ctx.save();ctx.strokeStyle='#f59e0b';ctx.lineWidth=3*scale;ctx.setLineDash([5*scale,3*scale]);if(sel.type==='route'){(sel.paths||[sel.points||[]]).forEach(path=>{const pts=path.map(p=>{const q=toDisplayPoint(p.x,p.y);return{x:q.x*c.width,y:q.y*c.height}});if(pts.length>1){ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);pts.slice(1).forEach(q=>ctx.lineTo(q.x,q.y));ctx.stroke()}})}else{const q=toDisplayPoint(sel.x,sel.y);ctx.beginPath();ctx.arc(q.x*c.width,q.y*c.height,20*scale,0,Math.PI*2);ctx.stroke()}ctx.restore()}}
  if(routePaths.length)drawRouteCanvas(ctx,{paths:routePaths,colour:routeDraft.colour||'#2563eb'},true);
@@ -693,7 +695,7 @@ function selectAnnotationAt(pt){
   if(!isAnnotationVisible(a))continue;let d=Infinity;
   if(a.type==='route'){
    (a.paths||[a.points||[]]).forEach(path=>{for(let i=0;i<path.length;i++){const q=toDisplayPoint(path[i].x,path[i].y);if(i===0)d=Math.min(d,Math.hypot(sx-q.x*c.width,sy-q.y*c.height));else{const prev=toDisplayPoint(path[i-1].x,path[i-1].y),ax=prev.x*c.width,ay=prev.y*c.height,bx=q.x*c.width,by=q.y*c.height,dx=bx-ax,dy=by-ay,l=dx*dx+dy*dy,t=l?Math.max(0,Math.min(1,((sx-ax)*dx+(sy-ay)*dy)/l)):0;d=Math.min(d,Math.hypot(sx-(ax+t*dx),sy-(ay+t*dy)))}}});
-  }else{const q=toDisplayPoint(a.x,a.y);d=Math.hypot(sx-q.x*c.width,sy-q.y*c.height);if(a.type==='comment'||a.type==='room')d=Math.max(0,d-12*scale)}
+  }else{const q=toDisplayPoint(a.x,a.y);d=Math.hypot(sx-q.x*c.width,sy-q.y*c.height);if(a.type==='comment'||a.type==='room')d=Math.max(0,d-9*scale)}
   if(d<bestD){bestD=d;best=a}
  }
  if(!best||bestD>Math.max(28,22*scale)){toast('No annotation close to that position');return}
@@ -1018,7 +1020,7 @@ async function exportPdf(){
    p.drawRectangle({x:x+8,y:y-5,width:24,height:10,color:rgb(1,1,1),borderColor:rgb(.06,.42,.56),borderWidth:.8});p.drawText(code,{x:x+9.5,y:y-2.2,size:6.5,font:bold,color:rgb(.06,.42,.56)});
    p.pushOperators(PDFLib.popGraphicsState());
   }
-  else if(a.type==='comment'||a.type==='room'){const ref=a.type==='comment'?commentRef(a):roomRef(a),col=a.type==='comment'?[.7,.29,.04]:[.06,.46,.43];p.drawRectangle({x:x-12,y:y-6,width:24,height:12,color:rgb(1,1,1),borderColor:rgb(...col),borderWidth:1});p.drawText(ref,{x:x-10,y:y-2,size:5.5,font:bold,color:rgb(...col)});}
+  else if(a.type==='comment'||a.type==='room'){const ref=a.type==='comment'?commentRef(a):roomRef(a),col=a.type==='comment'?[.7,.29,.04]:[.06,.46,.43];p.drawRectangle({x:x-10,y:y-5,width:20,height:10,color:rgb(1,1,1),borderColor:rgb(...col),borderWidth:.8});p.drawText(ref,{x:x-8.5,y:y-1.8,size:4.8,font:bold,color:rgb(...col)});}
   else{
   const fs=Math.min(a.fontSize||10,14);
   const maxLineWidth=148;
