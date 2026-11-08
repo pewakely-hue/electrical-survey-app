@@ -806,6 +806,26 @@ $('pageStage').addEventListener('pointerup',e=>{
  activeTouches.clear();gesture=null;pinchGesture=null;
 },true);
 $('pageStage').addEventListener('pointercancel',()=>{routePointerStart=null;symbolPointerStart=null},true);
+// Reliable room-tag input on iOS: capture taps at the page-stage level because
+// Safari can deliver touch events to the PDF canvas rather than the overlay.
+let roomPointerStart=null,roomLastInputAt=0,roomLastInputPoint=null;
+$('pageStage').addEventListener('pointerdown',e=>{
+ if(mode!=='room'||(e.pointerType==='touch'&&e.isPrimary===false))return;
+ roomPointerStart={id:e.pointerId,x:e.clientX,y:e.clientY};
+},true);
+$('pageStage').addEventListener('pointerup',e=>{
+ if(mode!=='room'||!roomPointerStart||roomPointerStart.id!==e.pointerId)return;
+ const start=roomPointerStart;roomPointerStart=null;
+ if(Math.hypot(e.clientX-start.x,e.clientY-start.y)>10)return;
+ const pt=displayPointFromClient(e.clientX,e.clientY);
+ pendingPoint={x:pt.x,y:pt.y};
+ roomLastInputAt=Date.now();roomLastInputPoint={x:e.clientX,y:e.clientY};
+ mode=null;syncOverlayInput();
+ openRoomEditor({});
+ activeTouches.clear();gesture=null;pinchGesture=null;
+},true);
+$('pageStage').addEventListener('pointercancel',()=>{roomPointerStart=null},true);
+
 
 $('pageStage').addEventListener('click',e=>{
  if(mode!=='route')return;
@@ -832,7 +852,7 @@ $('overlay').addEventListener('click',e=>{
   pendingPoint=pt;mode=null;syncOverlayInput();openPhotoCapturePrompt();
  }
  // Comment fallback for iPhone Safari.
-if(mode==='room'){const pt=displayPointFromClient(e.clientX,e.clientY);pendingPoint=pt;mode=null;syncOverlayInput();openRoomEditor({});return}
+if(mode==='room'){if(Date.now()-roomLastInputAt<700&&roomLastInputPoint&&Math.hypot(e.clientX-roomLastInputPoint.x,e.clientY-roomLastInputPoint.y)<30)return;const pt=displayPointFromClient(e.clientX,e.clientY);pendingPoint={x:pt.x,y:pt.y};mode=null;syncOverlayInput();openRoomEditor({});return}
  if(mode==='comment'){
   const pt=displayPointFromClient(e.clientX,e.clientY);
   pendingPoint=pt;
