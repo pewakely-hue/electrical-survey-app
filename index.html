@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#142333">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Electrical Survey v2.7</title>
+<title>Electrical Survey v2.8</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
@@ -250,9 +250,77 @@ function openDbEditor(b=null){if(!activeProject){toast('Open a project first');r
 $('newDbBoard').onclick=()=>openDbEditor();$('dbAddRow').onclick=()=>{dbCircuitRows.push(blankDbRow());renderDbRows()};$('dbAddTen').onclick=()=>{for(let i=0;i<10;i++)dbCircuitRows.push(blankDbRow());renderDbRows()};
 $('dbImage').onchange=()=>{dbImageFile=$('dbImage').files?.[0];if(!dbImageFile)return;if(dbImageUrl)URL.revokeObjectURL(dbImageUrl);dbImageUrl=URL.createObjectURL(dbImageFile);dbRotation=0;$('dbPreview').src=dbImageUrl;$('dbPreview').style.transform='rotate(0deg)';$('dbPreviewWrap').style.display='block'};
 function rotateDb(d){dbRotation=(dbRotation+d+360)%360;$('dbPreview').style.transform=`rotate(${dbRotation}deg)`}$('dbRotateLeft').onclick=()=>rotateDb(-90);$('dbRotateRight').onclick=()=>rotateDb(90);
-async function dbCanvas(){const im=await new Promise((ok,no)=>{let x=new Image();x.onload=()=>ok(x);x.onerror=no;x.src=URL.createObjectURL(dbImageFile)});let sw=dbRotation%180!==0,w=sw?im.height:im.width,h=sw?im.width:im.height,c=document.createElement('canvas');c.width=w;c.height=h;let x=c.getContext('2d');x.translate(w/2,h/2);x.rotate(dbRotation*Math.PI/180);x.drawImage(im,-im.width/2,-im.height/2);return c}
-function parseDbOcr(t){let out=[];t.split(/\n/).map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean).forEach(line=>{let m=line.match(/^([1-9]\d?)\s+(L[123])\s+(.+)$/i);if(!m)return;let r=blankDbRow(),rest=m[3];r.way=m[1];r.phase=m[2].toUpperCase();r.circuit=rest.replace(/\s+(F|O|B|D\/E|SWA|MCB|MCCB)\b.*$/i,'').trim();r.remarks=/SPARE/i.test(rest)?'SPARE':'';let rate=rest.match(/\b(\d{1,2})\s*A\b/i);if(rate)r.rating=rate[1]+' A';r.deviceType=/HRC/i.test(rest)?'HRC fuse':(/MCB|MCCB/i.test(rest)?'MCB':'');out.push(r)});return out}
-$('dbRunOcr').onclick=async()=>{if(!dbImageFile){toast('Choose a photograph first');return}if(!window.Tesseract){toast('OCR engine unavailable; check internet connection');return}let btn=$('dbRunOcr');btn.disabled=true;try{$('dbOcrStatus').textContent='Preparing image…';let c=await dbCanvas();$('dbOcrStatus').textContent='Recognising text…';let result=await Tesseract.recognize(c,'eng',{logger:m=>{if(m.status==='recognizing text')$('dbOcrStatus').textContent='Recognising text… '+Math.round(m.progress*100)+'%'}});let text=result.data.text||'';$('dbRaw').textContent=text;let rows=parseDbOcr(text);if(rows.length){dbCircuitRows=rows;renderDbRows();$('dbOcrStatus').textContent='Found '+rows.length+' possible circuit rows. OCR is a first pass: verify every field against the original.'}else $('dbOcrStatus').textContent='Text was recognised but circuit rows were not reliably identified. Add rows manually; raw OCR text is available below.'}catch(e){console.error(e);$('dbOcrStatus').textContent='OCR failed. Try a clearer, straight-on photograph.'}finally{btn.disabled=false}};
+async function dbCanvas(){
+ const url=URL.createObjectURL(dbImageFile);
+ try{
+  const im=await new Promise((ok,no)=>{let x=new Image();x.onload=()=>ok(x);x.onerror=no;x.src=url});
+  const sw=dbRotation%180!==0,w=sw?im.height:im.width,h=sw?im.width:im.height;
+  // Upscale small phone photographs before OCR; cap the longest edge to avoid huge canvases.
+  const factor=Math.min(2.5,3000/Math.max(w,h));
+  const c=document.createElement('canvas');c.width=Math.round(w*factor);c.height=Math.round(h*factor);
+  const x=c.getContext('2d',{willReadFrequently:true});x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
+  x.translate(c.width/2,c.height/2);x.rotate(dbRotation*Math.PI/180);x.drawImage(im,-im.width*factor/2,-im.height*factor/2,im.width*factor,im.height*factor);
+  // Gentle greyscale/contrast enhancement improves faint printed table rules and text.
+  const pixels=x.getImageData(0,0,c.width,c.height),d=pixels.data;
+  for(let i=0;i<d.length;i+=4){const g=(d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114);const v=Math.max(0,Math.min(255,(g-118)*1.28+128));d[i]=d[i+1]=d[i+2]=v}
+  x.putImageData(pixels,0,0);return c;
+ }finally{URL.revokeObjectURL(url)}
+}
+function parseDbOcr(t,words=[],imageWidth=0){
+ const out=[];
+ // Prefer word coordinates from Tesseract TSV. Group by baselines so the table's
+ // printed rows are reconstructed even when OCR inserts irregular line breaks.
+ const valid=(words||[]).filter(w=>String(w.text||'').trim()&&Number.isFinite(Number(w.bbox?.x0))&&Number.isFinite(Number(w.bbox?.y0)));
+ if(valid.length&&imageWidth){
+  const heights=valid.map(w=>Math.max(1,Number(w.bbox.y1)-Number(w.bbox.y0))).sort((a,b)=>a-b);
+  const tolerance=Math.max(7,(heights[Math.floor(heights.length/2)]||12)*0.72);
+  const sorted=valid.map(w=>({...w,_x:Number(w.bbox.x0),_y:(Number(w.bbox.y0)+Number(w.bbox.y1))/2,_h:Number(w.bbox.y1)-Number(w.bbox.y0)})).sort((a,b)=>a._y-b._y||a._x-b._x);
+  const lines=[];
+  sorted.forEach(w=>{let line=lines.find(l=>Math.abs(l.y-w._y)<=Math.max(tolerance,Math.min(l.h,w._h)*0.45));if(!line){line={y:w._y,h:w._h,words:[]};lines.push(line)}line.words.push(w);line.y=line.words.reduce((a,z)=>a+z._y,0)/line.words.length;line.h=Math.max(line.h,w._h)});
+  lines.sort((a,b)=>a.y-b.y);
+  lines.forEach(line=>{
+   const ws=line.words.sort((a,b)=>a._x-b._x),first=ws[0];
+   if(first._x>imageWidth*0.24)return; // circuit/way number should be in the left-hand table columns
+   let token=String(first.text).replace(/[^0-9/]/g,'');
+   if(!/^\d{1,2}(?:\/\d{1,2})?$/.test(token))return;
+   // Ignore page numbers and headings; a real circuit row must contain a description.
+   const rest=ws.slice(1),description=rest.filter(w=>w._x<imageWidth*0.76).map(w=>w.text).join(' ').replace(/\s+/g,' ').trim();
+   if(!description||description.length<3)return;
+   const r=blankDbRow();r.way=token;
+   const phaseWord=rest.find(w=>/^L[123]$/i.test(String(w.text).replace(/[^A-Za-z0-9]/g,'')));
+   if(phaseWord)r.phase=String(phaseWord.text).toUpperCase();
+   // Exclude a recognised phase token from the circuit description.
+   r.circuit=rest.filter(w=>w!==phaseWord&&w._x<imageWidth*0.76).map(w=>w.text).join(' ').replace(/\s+/g,' ').trim();
+   if(/SPARE/i.test(r.circuit))r.remarks='SPARE';
+   const rating=(ws.map(w=>w.text).join(' ').match(/\b(\d{1,3})\s*A\b/i)||[])[1];if(rating)r.rating=rating+' A';
+   const all=ws.map(w=>w.text).join(' ');if(/HRC/i.test(all))r.deviceType='HRC fuse';else if(/MCB|MCCB/i.test(all))r.deviceType=/MCCB/i.test(all)?'MCCB':'MCB';
+   out.push(r);
+  });
+ }
+ // Text-only fallback for OCR engines/results without word coordinates.
+ if(!out.length){
+  t.split(/\n/).map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean).forEach(line=>{
+   const m=line.match(/^((?:[1-9]\d?)(?:\s*\/\s*\d{1,2})?)\s+(?:(L[123])\s+)?(.{3,})$/i);if(!m)return;
+   const r=blankDbRow();r.way=m[1].replace(/\s/g,'');if(m[2])r.phase=m[2].toUpperCase();r.circuit=m[3].trim();if(/SPARE/i.test(r.circuit))r.remarks='SPARE';out.push(r);
+  });
+ }
+ // Deduplicate repeated OCR baselines while preserving the printed schedule order.
+ return out.filter((r,i,a)=>i===0||!(r.way===a[i-1].way&&r.circuit===a[i-1].circuit));
+}
+$('dbRunOcr').onclick=async()=>{
+ if(!dbImageFile){toast('Choose a photograph first');return}if(!window.Tesseract){toast('OCR engine unavailable; check internet connection');return}
+ const btn=$('dbRunOcr');btn.disabled=true;
+ try{
+  $('dbOcrStatus').textContent='Preparing and enhancing image…';const c=await dbCanvas();
+  $('dbOcrStatus').textContent='Recognising text and table positions…';
+  const result=await Tesseract.recognize(c,'eng',{logger:m=>{if(m.status==='recognizing text')$('dbOcrStatus').textContent='Recognising text… '+Math.round(m.progress*100)+'%'}});
+  const text=result.data.text||'';$('dbRaw').textContent=text;
+  const rows=parseDbOcr(text,result.data.words||[],c.width);
+  if(rows.length){dbCircuitRows=rows;renderDbRows();$('dbOcrStatus').textContent='Identified '+rows.length+' possible circuit rows from their positions. Circuit descriptions are populated; check every field against the original schedule.'}
+  else $('dbOcrStatus').textContent='Text was recognised, but no reliable circuit rows could be separated. Try cropping closer to the schedule or add rows manually; raw OCR text is available below.';
+ }catch(e){console.error(e);$('dbOcrStatus').textContent='OCR failed. Try a clearer, straight-on photograph.'}
+ finally{btn.disabled=false}
+};
 $('dbSave').onclick=()=>{let b={id:editingDbBoard||uid(),ref:$('dbRef').value.trim(),name:$('dbName').value.trim(),location:$('dbLocation').value.trim(),client:$('dbClient').value.trim(),phases:$('dbPhases').value,voltage:$('dbVoltage').value.trim(),incomer:$('dbIncomer').value.trim(),incomerRating:$('dbIncomerRating').value.trim(),rcd:$('dbRcd').value.trim(),rcdPoles:$('dbRcdPoles').value.trim(),circuits:dbCircuitRows.map(x=>({...x}))};activeProject.dbBoards=activeProject.dbBoards||[];let i=activeProject.dbBoards.findIndex(x=>x.id===b.id);if(i<0)activeProject.dbBoards.push(b);else activeProject.dbBoards[i]=b;saveDB();renderDbBoards();toast('Board saved')};
 function currentDb(){return activeProject?.dbBoards?.find(x=>x.id===editingDbBoard)||{ref:$('dbRef').value,name:$('dbName').value,location:$('dbLocation').value,client:$('dbClient').value,phases:$('dbPhases').value,voltage:$('dbVoltage').value,incomer:$('dbIncomer').value,incomerRating:$('dbIncomerRating').value,rcd:$('dbRcd').value,rcdPoles:$('dbRcdPoles').value,circuits:dbCircuitRows}}
 $('dbExportXlsx').onclick=()=>{let b=currentDb();if(!window.XLSX){toast('Excel export library unavailable');return}let wb=XLSX.utils.book_new(),meta=[['Board reference',b.ref],['Board name',b.name],['Location',b.location],['Client / installation',b.client],['Phases',b.phases],['Nominal voltage',b.voltage],['Incomer',b.incomer],['Incomer rating',b.incomerRating],['RCD device',b.rcd],['RCD poles',b.rcdPoles]];XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(meta),'Board details');let data=b.circuits.map(r=>Object.fromEntries(DB_COLUMNS.map(c=>[c[1],r[c[0]]||''])));XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(data),'Circuit schedule');XLSX.writeFile(wb,(b.ref||'DB-schedule')+'.xlsx')};
